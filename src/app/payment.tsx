@@ -16,7 +16,11 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { AppInput } from "@/components/ui/AppInput";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { PageHero } from "@/components/ui/PageHero";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
 import { theme } from "@/constants/theme";
 import { typography } from "@/constants/typography";
@@ -35,7 +39,6 @@ type DraftParams = {
   notes: string;
 };
 
-const PAGE_PADDING = 16;
 const MAX_CONTENT_WIDTH = 720;
 
 export default function PaymentScreen() {
@@ -52,9 +55,7 @@ export default function PaymentScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
 
   const [cashReceived, setCashReceived] = useState("");
-
   const [amountPaid, setAmountPaid] = useState("");
-
   const [referenceNumber, setReferenceNumber] = useState("");
 
   const draft = useMemo<DraftParams | null>(() => {
@@ -90,7 +91,6 @@ export default function PaymentScreen() {
   }, [draft]);
 
   const enteredCash = parseAmount(cashReceived);
-
   const enteredAmount = parseAmount(amountPaid);
 
   const paymentAmount =
@@ -208,25 +208,18 @@ export default function PaymentScreen() {
   if (!draft || !totals) {
     return (
       <View style={styles.invalidScreen}>
-        <View style={styles.invalidIcon}>
-          <Ionicons
-            name="alert-circle-outline"
-            size={30}
-            color={colors.danger}
+        <ErrorState
+          title="Payment unavailable"
+          message="The Job Order information could not be loaded."
+        />
+
+        <View style={styles.invalidAction}>
+          <AppButton
+            title="Back to New Job Order"
+            icon="arrow-back"
+            onPress={() => router.replace("/new-job-order")}
           />
         </View>
-
-        <Text style={styles.invalidTitle}>Payment unavailable</Text>
-
-        <Text style={styles.invalidText}>
-          The Job Order information could not be loaded.
-        </Text>
-
-        <AppButton
-          title="Back to New Job Order"
-          icon="arrow-back"
-          onPress={() => router.replace("/new-job-order")}
-        />
       </View>
     );
   }
@@ -236,37 +229,12 @@ export default function PaymentScreen() {
       style={styles.screen}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.hero}>
-        <View
-          style={[
-            styles.heroInner,
-            {
-              maxWidth: MAX_CONTENT_WIDTH,
-            },
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Back to order"
-            onPress={handleBackToOrder}
-            style={styles.heroBack}
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
-          </Pressable>
-
-          <View style={styles.heroContent}>
-            <View style={styles.heroIcon}>
-              <Ionicons name="card-outline" size={28} color={colors.primary} />
-            </View>
-
-            <Text style={styles.heroTitle}>Payment</Text>
-
-            <Text style={styles.heroSubtitle}>
-              Complete this sales transaction
-            </Text>
-          </View>
-        </View>
-      </View>
+      <PageHero
+        icon="card-outline"
+        title="Payment"
+        subtitle="Complete this sales transaction"
+        onBack={handleBackToOrder}
+      />
 
       <ScrollView
         style={styles.scroll}
@@ -274,8 +242,6 @@ export default function PaymentScreen() {
           styles.scrollContent,
           {
             maxWidth: MAX_CONTENT_WIDTH,
-            alignSelf: "center",
-            width: "100%",
           },
         ]}
         keyboardShouldPersistTaps="handled"
@@ -306,23 +272,11 @@ export default function PaymentScreen() {
         </AppCard>
 
         <AppCard padding={spacing.lg} style={styles.paymentCard}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionIcon}>
-              <Ionicons
-                name="wallet-outline"
-                size={20}
-                color={colors.primary}
-              />
-            </View>
-
-            <View>
-              <Text style={styles.sectionTitle}>Payment Method</Text>
-
-              <Text style={styles.sectionSubtitle}>
-                How is the customer paying?
-              </Text>
-            </View>
-          </View>
+          <SectionHeader
+            icon="wallet-outline"
+            title="Payment Method"
+            subtitle="How is the customer paying?"
+          />
 
           <View style={[styles.methodRow, isTablet && styles.methodRowTablet]}>
             <Pressable
@@ -422,23 +376,11 @@ export default function PaymentScreen() {
 
         {paymentMethod === "cash" ? (
           <AppCard padding={spacing.lg} style={styles.paymentCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
-                <Ionicons
-                  name="cash-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-              </View>
-
-              <View>
-                <Text style={styles.sectionTitle}>Cash Payment</Text>
-
-                <Text style={styles.sectionSubtitle}>
-                  Enter the cash received from the customer
-                </Text>
-              </View>
-            </View>
+            <SectionHeader
+              icon="cash-outline"
+              title="Cash Payment"
+              subtitle="Enter the cash received from the customer"
+            />
 
             <AppInput
               label="Cash Received"
@@ -482,23 +424,11 @@ export default function PaymentScreen() {
           </AppCard>
         ) : (
           <AppCard padding={spacing.lg} style={styles.paymentCard}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
-                <Ionicons
-                  name="phone-portrait-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-              </View>
-
-              <View>
-                <Text style={styles.sectionTitle}>GCash Payment</Text>
-
-                <Text style={styles.sectionSubtitle}>
-                  Enter the amount paid and optional reference
-                </Text>
-              </View>
-            </View>
+            <SectionHeader
+              icon="phone-portrait-outline"
+              title="GCash Payment"
+              subtitle="Enter the amount paid and optional reference"
+            />
 
             <AppInput
               label="Amount Paid"
@@ -655,68 +585,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
 
-  hero: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: PAGE_PADDING,
-    paddingTop: 54,
-    paddingBottom: 20,
-  },
-
-  heroInner: {
-    width: "100%",
-    alignSelf: "center",
-    position: "relative",
-    alignItems: "center",
-  },
-
-  heroBack: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 2,
-  },
-
-  heroContent: {
-    alignItems: "center",
-    width: "100%",
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-  },
-
-  heroTitle: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  heroSubtitle: {
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
   scroll: {
     flex: 1,
   },
 
   scrollContent: {
+    width: "100%",
+    alignSelf: "center",
     padding: PAGE_PADDING,
-    paddingBottom: 40,
+    paddingBottom: spacing["4xl"],
   },
 
   amountCard: {
@@ -762,33 +639,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
 
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.lg,
-  },
-
-  sectionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: colors.primaryLight,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: spacing.md,
-  },
-
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
-
-  sectionSubtitle: {
-    ...typography.small,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-
   methodRow: {
     gap: spacing.sm,
   },
@@ -817,7 +667,7 @@ const styles = StyleSheet.create({
   methodIcon: {
     width: 44,
     height: 44,
-    borderRadius: 14,
+    borderRadius: theme.radius.md,
     backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
@@ -943,7 +793,7 @@ const styles = StyleSheet.create({
   statusDot: {
     width: 7,
     height: 7,
-    borderRadius: 4,
+    borderRadius: theme.radius.full,
   },
 
   statusDotPaid: {
@@ -1003,28 +853,7 @@ const styles = StyleSheet.create({
     padding: spacing["2xl"],
   },
 
-  invalidIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.dangerLight,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.md,
-  },
-
-  invalidTitle: {
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  invalidText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: "center",
-    maxWidth: 360,
-    marginTop: spacing.xs,
-    marginBottom: spacing.lg,
+  invalidAction: {
+    marginTop: spacing.lg,
   },
 });

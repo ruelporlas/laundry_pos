@@ -1,4 +1,5 @@
 import { getDatabase } from "@/database";
+import { doAction } from "@/hooks/actions";
 import {
   DiscountType,
   JobOrder,
@@ -10,6 +11,11 @@ import {
   PaymentMethod,
   PaymentStatus,
 } from "@/models/jobOrder";
+
+import {
+  recordInventoryReturnsForJobOrderInTransaction,
+  recordInventorySalesInTransaction,
+} from "@/repositories/inventoryRepository";
 
 type CustomerRow = {
   id: number;
@@ -35,6 +41,15 @@ type BundleRow = {
   name: string;
   price: number;
   is_active: number;
+};
+
+type BundleItemRow = {
+  id: number;
+  bundle_id: number;
+  item_type: "product" | "service";
+  item_id: number;
+  quantity: number;
+  unit_price: number;
 };
 
 type JobOrderRow = {
@@ -87,6 +102,12 @@ type PaymentRow = {
   updated_at: string | null;
 };
 
+type UserAuthorizationRow = {
+  id: number;
+  role: "admin" | "staff";
+  is_active: number;
+};
+
 export type JobOrderListItem = JobOrder & {
   customerName: string;
 };
@@ -121,6 +142,10 @@ export async function createJobOrder(
   const db = await getDatabase();
 
   let result: CreateJobOrderResult | null = null;
+
+  const inventorySales: Awaited<
+    ReturnType<typeof recordInventorySalesInTransaction>
+  > = [];
 
   await db.withTransactionAsync(async () => {
     const customer = await db.getFirstAsync<CustomerRow>(
@@ -171,6 +196,11 @@ export async function createJobOrder(
 
     const paymentStatus = calculatePaymentStatus(total, amountPaid);
 
+    /*
+     * We intentionally create the Job Order first inside the SAME
+     * transaction. If inventory validation/deduction fails later,
+     * the entire transaction rolls back, including this Job Order.
+     */
     const temporaryNumber = `TEMP-${Date.now()}-${Math.random()
       .toString(36)
       .slice(2, 10)}`;
@@ -252,6 +282,42 @@ export async function createJobOrder(
       now(),
       jobOrderId,
     );
+
+    /*
+     * Build all inventory requirements from the actual resolved JO items.
+     *
+     * Direct product:
+     *   Product quantity = JO quantity
+     *
+     * Bundle:
+     *   Product quantity = bundle component quantity × JO bundle quantity
+     *
+     * Services do not affect inventory.
+     *
+     * Multiple lines using the same product are aggregated before
+     * inventory is changed.
+     */
+    const inventoryRequirements = await buildInventoryRequirements(
+      db,
+      resolvedItems,
+    );
+
+    if (inventoryRequirements.length > 0) {
+      const saleInputs: InventorySaleInput[] = inventoryRequirements.map(
+        (requirement) => ({
+          productId: requirement.productId,
+          quantity: requirement.quantity,
+          jobOrderId,
+          reference: jobOrderNumber,
+          notes: "",
+          createdBy,
+        }),
+      );
+
+      const sales = await recordInventorySalesInTransaction(db, saleInputs);
+
+      inventorySales.push(...sales);
+    }
 
     for (const item of resolvedItems) {
       await db.runAsync(
@@ -417,6 +483,35 @@ export async function createJobOrder(
 
   if (!result) {
     throw new Error("Unable to create the Job Order.");
+  }
+
+  /*
+   * Inventory audit actions are deliberately dispatched ONLY after
+   * the Job Order transaction has committed successfully.
+   *
+   * This prevents an audit entry from being created for inventory
+   * that was later rolled back.
+   */
+  for (const operation of inventorySales) {
+    const product = await db.getFirstAsync<ProductRow>(
+      `
+        SELECT
+          id,
+          name,
+          price,
+          is_active
+        FROM products
+        WHERE id = ?
+        LIMIT 1;
+      `,
+      operation.inventory.productId,
+    );
+
+    doAction("inventory.stock_sold", {
+      inventory: operation.inventory,
+      movement: operation.movement,
+      productName: product?.name ?? "Unknown Product",
+    });
   }
 
   return result;
@@ -628,6 +723,206 @@ export async function addJobOrderPayment(
   return result;
 }
 
+export async function voidJobOrder(
+  jobOrderId: number,
+  voidedBy: number,
+  voidReason: string,
+): Promise<JobOrder> {
+  const cleanReason = voidReason.trim();
+
+  if (!cleanReason) {
+    throw new Error("Please enter a reason for voiding this Job Order.");
+  }
+
+  if (!Number.isInteger(jobOrderId) || jobOrderId <= 0) {
+    throw new Error("The Job Order ID is invalid.");
+  }
+
+  if (!Number.isInteger(voidedBy) || voidedBy <= 0) {
+    throw new Error(
+      "A valid administrator is required to void this Job Order.",
+    );
+  }
+
+  const db = await getDatabase();
+
+  let result: JobOrder | null = null;
+
+  const inventoryReturns: Awaited<
+    ReturnType<typeof recordInventoryReturnsForJobOrderInTransaction>
+  > = [];
+
+  await db.withTransactionAsync(async () => {
+    const user = await db.getFirstAsync<UserAuthorizationRow>(
+      `
+        SELECT
+          id,
+          role,
+          is_active
+        FROM users
+        WHERE id = ?
+        LIMIT 1;
+      `,
+      voidedBy,
+    );
+
+    if (!user || user.role !== "admin" || user.is_active !== 1) {
+      throw new Error("Only an active administrator can void a Job Order.");
+    }
+
+    const jobOrderRow = await db.getFirstAsync<JobOrderRow>(
+      `
+        SELECT
+          id,
+          job_order_number,
+          customer_id,
+          subtotal,
+          discount_type,
+          discount_value,
+          discount_amount,
+          total,
+          amount_paid,
+          balance,
+          payment_status,
+          is_voided,
+          voided_by,
+          voided_at,
+          void_reason,
+          notes,
+          created_by,
+          created_at,
+          updated_by,
+          updated_at
+        FROM job_orders
+        WHERE id = ?
+        LIMIT 1;
+      `,
+      jobOrderId,
+    );
+
+    if (!jobOrderRow) {
+      throw new Error("The Job Order could not be found.");
+    }
+
+    if (jobOrderRow.is_voided === 1) {
+      throw new Error("This Job Order has already been voided.");
+    }
+
+    /*
+     * Return the actual inventory sold by this Job Order.
+     *
+     * We intentionally use the recorded sale movements instead of
+     * reconstructing the current bundle definition. This ensures that
+     * voiding reverses exactly what was deducted when the JO was created.
+     */
+    const returns = await recordInventoryReturnsForJobOrderInTransaction(
+      db,
+      jobOrderId,
+      jobOrderRow.job_order_number,
+      voidedBy,
+    );
+
+    inventoryReturns.push(...returns);
+
+    const timestamp = now();
+
+    const updateResult = await db.runAsync(
+      `
+        UPDATE job_orders
+        SET
+          is_voided = 1,
+          voided_by = ?,
+          voided_at = ?,
+          void_reason = ?,
+          updated_by = ?,
+          updated_at = ?
+        WHERE id = ?
+          AND is_voided = 0;
+      `,
+      voidedBy,
+      timestamp,
+      cleanReason,
+      voidedBy,
+      timestamp,
+      jobOrderId,
+    );
+
+    if (updateResult.changes !== 1) {
+      throw new Error(
+        "The Job Order could not be voided. It may have already been voided.",
+      );
+    }
+
+    const updatedRow = await db.getFirstAsync<JobOrderRow>(
+      `
+        SELECT
+          id,
+          job_order_number,
+          customer_id,
+          subtotal,
+          discount_type,
+          discount_value,
+          discount_amount,
+          total,
+          amount_paid,
+          balance,
+          payment_status,
+          is_voided,
+          voided_by,
+          voided_at,
+          void_reason,
+          notes,
+          created_by,
+          created_at,
+          updated_by,
+          updated_at
+        FROM job_orders
+        WHERE id = ?
+        LIMIT 1;
+      `,
+      jobOrderId,
+    );
+
+    if (!updatedRow) {
+      throw new Error("The Job Order was voided but could not be loaded.");
+    }
+
+    result = mapJobOrderRow(updatedRow);
+  });
+
+  if (!result) {
+    throw new Error("Unable to void the Job Order.");
+  }
+
+  /*
+   * Inventory audit actions are deliberately dispatched only after
+   * the entire void transaction has committed successfully.
+   */
+  for (const operation of inventoryReturns) {
+    const product = await db.getFirstAsync<ProductRow>(
+      `
+        SELECT
+          id,
+          name,
+          price,
+          is_active
+        FROM products
+        WHERE id = ?
+        LIMIT 1;
+      `,
+      operation.inventory.productId,
+    );
+
+    doAction("inventory.stock_returned", {
+      inventory: operation.inventory,
+      movement: operation.movement,
+      productName: product?.name ?? "Unknown Product",
+    });
+  }
+
+  return result;
+}
+
 export async function getJobOrders(): Promise<JobOrderListItem[]> {
   const db = await getDatabase();
 
@@ -798,6 +1093,79 @@ export function calculateJobOrderTotals(
     balance,
     paymentStatus: calculatePaymentStatus(total, paid),
   };
+}
+
+type InventoryRequirement = {
+  productId: number;
+  quantity: number;
+};
+
+type InventorySaleInput = {
+  productId: number;
+  quantity: number;
+  jobOrderId: number;
+  reference: string;
+  notes: string;
+  createdBy: number | null;
+};
+
+async function buildInventoryRequirements(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  items: JobOrderDraftItem[],
+): Promise<InventoryRequirement[]> {
+  const requirements = new Map<number, number>();
+
+  for (const item of items) {
+    if (item.itemType === "product") {
+      addInventoryRequirement(requirements, item.itemId, item.quantity);
+      continue;
+    }
+
+    if (item.itemType !== "bundle") {
+      continue;
+    }
+
+    const bundleItems = await db.getAllAsync<BundleItemRow>(
+      `
+        SELECT
+          item_type,
+          item_id,
+          quantity
+        FROM bundle_items
+        WHERE bundle_id = ?
+      `,
+      item.itemId,
+    );
+
+    for (const bundleItem of bundleItems) {
+      if (bundleItem.item_type !== "product") {
+        continue;
+      }
+
+      const requiredQuantity = bundleItem.quantity * item.quantity;
+
+      addInventoryRequirement(
+        requirements,
+        bundleItem.item_id,
+        requiredQuantity,
+      );
+    }
+  }
+
+  return Array.from(requirements.entries()).map(([productId, quantity]) => ({
+    productId,
+    quantity,
+  }));
+}
+
+function addInventoryRequirement(
+  requirements: Map<number, number>,
+  productId: number,
+  quantity: number,
+): void {
+  const existing = requirements.get(productId) ?? 0;
+
+  requirements.set(productId, existing + quantity);
 }
 
 function validateDraft(draft: JobOrderDraft): void {

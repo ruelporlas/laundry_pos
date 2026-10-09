@@ -2,10 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,24 +14,26 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { AppInput } from "@/components/ui/AppInput";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 import {
   getServiceById,
   updateService,
 } from "@/repositories/serviceRepository";
 
 export default function EditServiceScreen() {
-  const params = useLocalSearchParams();
-  const id = params.id;
-
+  const { id } = useLocalSearchParams<{ id: string }>();
   const { width } = useWindowDimensions();
 
   const isTablet = width >= 768;
-  const horizontalPadding = isTablet ? spacing["2xl"] : spacing.lg;
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -49,10 +49,19 @@ export default function EditServiceScreen() {
   useEffect(() => {
     let isMounted = true;
 
-    const loadService = async () => {
+    async function loadService() {
+      if (!id) {
+        if (isMounted) {
+          setError("Service ID is missing.");
+          setLoading(false);
+        }
+
+        return;
+      }
+
       const serviceId = Number(id);
 
-      if (!id || !Number.isInteger(serviceId)) {
+      if (!Number.isInteger(serviceId) || serviceId <= 0) {
         if (isMounted) {
           setError("Invalid service ID.");
           setLoading(false);
@@ -62,6 +71,11 @@ export default function EditServiceScreen() {
       }
 
       try {
+        if (isMounted) {
+          setError("");
+          setLoading(true);
+        }
+
         const service = await getServiceById(serviceId);
 
         if (!isMounted) {
@@ -70,38 +84,46 @@ export default function EditServiceScreen() {
 
         if (!service) {
           setError("Service could not be found.");
-          setLoading(false);
           return;
         }
 
         setName(service.name);
         setDescription(service.description);
-        setPrice(service.price.toString());
-        setLoading(false);
+        setPrice(service.price.toFixed(2));
       } catch (error) {
-        if (!isMounted) {
-          return;
-        }
-
         console.error("Failed to load service:", error);
 
-        setError(
-          error instanceof Error ? error.message : "Unable to load service.",
-        );
-
-        setLoading(false);
+        if (isMounted) {
+          setError(
+            error instanceof Error ? error.message : "Unable to load service.",
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-    };
+    }
 
     loadService();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [id]);
 
   const handleBackToDetails = () => {
-    router.replace(`/service-details?id=${id}`);
+    if (!id) {
+      router.replace("/services");
+      return;
+    }
+
+    router.replace({
+      pathname: "/service-details",
+      params: {
+        id: String(id),
+      },
+    });
   };
 
   const handleSave = async () => {
@@ -136,7 +158,7 @@ export default function EditServiceScreen() {
 
     const serviceId = Number(id);
 
-    if (!Number.isInteger(serviceId)) {
+    if (!Number.isInteger(serviceId) || serviceId <= 0) {
       setError("Invalid service ID.");
       return;
     }
@@ -150,14 +172,19 @@ export default function EditServiceScreen() {
         price: numericPrice,
       });
 
-      router.replace(`/service-details?id=${serviceId}`);
+      router.replace({
+        pathname: "/service-details",
+        params: {
+          id: serviceId.toString(),
+        },
+      });
     } catch (error) {
       console.error("Failed to update service:", error);
 
       setError(
         error instanceof Error ? error.message : "Unable to update service.",
       );
-
+    } finally {
       setSaving(false);
     }
   };
@@ -165,25 +192,14 @@ export default function EditServiceScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingHero}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={handleBackToDetails}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.backButtonPressed,
-            ]}
-          >
-            <Ionicons name="arrow-back" size={21} color={colors.text} />
-          </Pressable>
-        </View>
+        <PageHero
+          icon="create-outline"
+          title="Edit Service"
+          subtitle="Loading service..."
+          onBack={handleBackToDetails}
+        />
 
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={colors.primary} />
-
-          <Text style={styles.loadingText}>Loading service...</Text>
-        </View>
+        <LoadingState message="Loading service..." />
       </View>
     );
   }
@@ -191,32 +207,19 @@ export default function EditServiceScreen() {
   if (error && !name) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingHero}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={handleBackToDetails}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.backButtonPressed,
-            ]}
-          >
-            <Ionicons name="arrow-back" size={21} color={colors.text} />
-          </Pressable>
-        </View>
+        <PageHero
+          icon="create-outline"
+          title="Edit Service"
+          subtitle="Service information"
+          onBack={handleBackToDetails}
+        />
 
-        <View style={styles.centerContent}>
-          <View style={styles.errorIcon}>
-            <Ionicons name="warning-outline" size={30} color={colors.danger} />
-          </View>
-
-          <Text style={styles.errorTitle}>Unable to Load Service</Text>
-
-          <Text style={styles.errorMessage}>{error}</Text>
+        <View style={styles.errorScreen}>
+          <ErrorState title="Unable to load service" message={error} />
 
           <AppButton
             title="Go Back"
-            icon="arrow-back"
+            icon="arrow-back-outline"
             onPress={handleBackToDetails}
           />
         </View>
@@ -231,89 +234,37 @@ export default function EditServiceScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            {
-              paddingHorizontal: horizontalPadding,
-            },
-          ]}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View
-            style={[
-              styles.hero,
-              {
-                marginHorizontal: -horizontalPadding,
-                paddingHorizontal: horizontalPadding,
-              },
-            ]}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              onPress={handleBackToDetails}
-              style={({ pressed }) => [
-                styles.backButton,
-                pressed && styles.backButtonPressed,
-              ]}
-            >
-              <Ionicons name="arrow-back" size={21} color={colors.text} />
-            </Pressable>
+          <PageHero
+            icon="create-outline"
+            title="Edit Service"
+            subtitle="Update service information"
+            onBack={handleBackToDetails}
+            disabled={saving}
+          />
 
-            <View style={styles.heroIcon}>
-              <Ionicons
-                name="create-outline"
-                size={24}
-                color={colors.primary}
-              />
-            </View>
-
-            <Text style={styles.heroTitle}>Edit Service</Text>
-
-            <Text style={styles.heroSubtitle}>Update service information</Text>
-          </View>
-
-          <View
-            style={[
-              styles.content,
-              {
-                maxWidth: isTablet ? 720 : 600,
-              },
-            ]}
-          >
+          <View style={[styles.content, isTablet && styles.contentTablet]}>
             <AppCard padding={spacing.xl}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionIcon}>
-                  <Ionicons
-                    name="create-outline"
-                    size={20}
-                    color={colors.primary}
-                  />
-                </View>
+              <SectionHeader
+                icon="create-outline"
+                title="Service Information"
+                subtitle="Update the service name, description, or selling price."
+              />
 
-                <View style={styles.sectionHeaderText}>
-                  <Text style={styles.sectionTitle}>Service Information</Text>
-
-                  <Text style={styles.sectionSubtitle}>
-                    Update the service name, description, or selling price.
-                  </Text>
-                </View>
-              </View>
-
-              {error && (
+              {error ? (
                 <View style={styles.errorBanner}>
-                  <View style={styles.errorIconSmall}>
-                    <Ionicons
-                      name="warning-outline"
-                      size={18}
-                      color={colors.danger}
-                    />
-                  </View>
+                  <Ionicons
+                    name="warning-outline"
+                    size={18}
+                    color={colors.danger}
+                  />
 
                   <Text style={styles.errorText}>{error}</Text>
                 </View>
-              )}
+              ) : null}
 
               <View style={styles.form}>
                 <AppInput
@@ -331,6 +282,7 @@ export default function EditServiceScreen() {
                   autoCorrect={false}
                   required
                   error={nameError}
+                  editable={!saving}
                 />
 
                 <AppInput
@@ -343,6 +295,7 @@ export default function EditServiceScreen() {
                   numberOfLines={3}
                   textAlignVertical="top"
                   style={styles.descriptionInput}
+                  editable={!saving}
                 />
 
                 <AppInput
@@ -359,6 +312,7 @@ export default function EditServiceScreen() {
                   keyboardType="decimal-pad"
                   required
                   error={priceError}
+                  editable={!saving}
                 />
               </View>
 
@@ -390,6 +344,7 @@ export default function EditServiceScreen() {
                 icon="checkmark"
                 onPress={handleSave}
                 loading={saving}
+                disabled={saving}
                 fullWidth={!isTablet}
               />
             </View>
@@ -411,129 +366,39 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    flexGrow: 1,
     paddingBottom: spacing["5xl"],
-  },
-
-  hero: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  loadingHero: {
-    minHeight: 88,
-    backgroundColor: colors.primaryLight,
-  },
-
-  backButton: {
-    position: "absolute",
-    left: 16,
-    top: 18,
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-  },
-
-  backButtonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.96 }],
-  },
-
-  heroIcon: {
-    width: 48,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-  },
-
-  heroTitle: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  heroSubtitle: {
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
   },
 
   content: {
     width: "100%",
-    alignSelf: "center",
+    paddingHorizontal: PAGE_PADDING,
     paddingTop: spacing.xl,
   },
 
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.xl,
-  },
-
-  sectionIcon: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.md,
-    backgroundColor: colors.primaryLight,
-  },
-
-  sectionHeaderText: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
-
-  sectionSubtitle: {
-    marginTop: 3,
-    ...typography.small,
-    color: colors.textMuted,
+  contentTablet: {
+    maxWidth: 720,
+    alignSelf: "center",
   },
 
   errorBanner: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.lg,
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginTop: spacing.xl,
     padding: spacing.md,
     borderRadius: theme.radius.md,
     backgroundColor: colors.dangerLight,
   },
 
-  errorIconSmall: {
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-  },
-
   errorText: {
     flex: 1,
-    marginLeft: spacing.sm,
     ...typography.small,
     color: colors.danger,
   },
 
   form: {
     gap: spacing.lg,
+    marginTop: spacing.xl,
   },
 
   descriptionInput: {
@@ -566,41 +431,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
 
-  centerContent: {
+  errorScreen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  loadingText: {
-    marginTop: spacing.md,
-    ...typography.body,
-    color: colors.textMuted,
-  },
-
-  errorIcon: {
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.dangerLight,
-  },
-
-  errorTitle: {
-    marginTop: spacing.lg,
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  errorMessage: {
-    maxWidth: 360,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xl,
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
+    paddingHorizontal: PAGE_PADDING,
   },
 });

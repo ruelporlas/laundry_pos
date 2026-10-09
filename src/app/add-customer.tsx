@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,11 +14,13 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { AppInput } from "@/components/ui/AppInput";
+import { PageHero } from "@/components/ui/PageHero";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 import { createCustomer } from "@/repositories/customerRepository";
 
 export default function AddCustomerScreen() {
@@ -93,32 +94,13 @@ export default function AddCustomerScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.hero}>
-          <Pressable
-            onPress={handleBackToCustomers}
-            disabled={saving}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && !saving && styles.backButtonPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Back to customers"
-          >
-            <Ionicons name="arrow-back" size={21} color={colors.text} />
-          </Pressable>
-
-          <View style={styles.heroIcon}>
-            <Ionicons
-              name="person-add-outline"
-              size={28}
-              color={colors.primary}
-            />
-          </View>
-
-          <Text style={styles.title}>Add Customer</Text>
-
-          <Text style={styles.subtitle}>Create a new laundry customer</Text>
-        </View>
+        <PageHero
+          icon="person-add-outline"
+          title="Add Customer"
+          subtitle="Create a new laundry customer"
+          onBack={handleBackToCustomers}
+          disabled={saving}
+        />
 
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -239,61 +221,9 @@ const styles = StyleSheet.create({
     paddingBottom: spacing["5xl"],
   },
 
-  hero: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    paddingHorizontal: spacing.lg,
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  backButton: {
-    position: "absolute",
-    left: spacing.lg,
-    top: 54,
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  backButtonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.96 }],
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  title: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  subtitle: {
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
   content: {
     width: "100%",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: PAGE_PADDING,
     paddingTop: spacing.xl,
   },
 

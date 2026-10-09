@@ -1,9 +1,36 @@
+import { JobOrderActivityLink } from "@/components/job-order/JobOrderActivityLink";
+import { JobOrderItemsCard } from "@/components/job-order/JobOrderItemsCard";
+import { JobOrderPaymentCard } from "@/components/job-order/JobOrderPaymentCard";
+import { JobOrderSummaryCard } from "@/components/job-order/JobOrderSummaryCard";
+import { JobOrderTransactionActions } from "@/components/job-order/JobOrderTransactionActions";
+import { AppButton } from "@/components/ui/AppButton";
+import { AppCard } from "@/components/ui/AppCard";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
+import { colors } from "@/constants/colors";
+import { styles } from "@/constants/jobOrderDetailsStyles";
+import { PAGE_PADDING } from "@/constants/layout";
+import { spacing } from "@/constants/spacing";
+import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
+import { useJobOrderDetails } from "@/hooks/useJobOrderDetails";
+import type { AuditChange } from "@/models/auditLog";
+import type { PaymentMethod } from "@/models/jobOrder";
+import { getAppSettings } from "@/repositories/settingsRepository";
+import { printerService } from "@/services/printerService";
+import { getReceiptData } from "@/services/receiptService";
+import { getEscPosHexForJobOrder } from "@/utils/escPosDebug";
+import {
+  formatActivityChangeValue,
+  formatFieldName,
+  getActivityConfig,
+  getRemovedItems,
+} from "@/utils/jobOrderActivity";
+import { formatReceipt } from "@/utils/receiptFormatter";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,116 +43,95 @@ import {
   View,
 } from "react-native";
 
-import { AppButton } from "@/components/ui/AppButton";
-import { AppCard } from "@/components/ui/AppCard";
-import { colors } from "@/constants/colors";
-import { spacing } from "@/constants/spacing";
-import { theme } from "@/constants/theme";
-import { typography } from "@/constants/typography";
-import type { Customer } from "@/models/customer";
-import type {
-  JobOrder,
-  JobOrderItem,
-  Payment,
-  PaymentInput,
-  PaymentMethod,
-} from "@/models/jobOrder";
-import { getCustomerById } from "@/repositories/customerRepository";
-import {
-  addJobOrderPayment,
-  getJobOrderById,
-  getJobOrderItems,
-  getJobOrderPayments,
-} from "@/repositories/jobOrderRepository";
-
-const PAGE_PADDING = 16;
 const MAX_CONTENT_WIDTH = 720;
 
 export default function JobOrderCreatedScreen() {
   const router = useRouter();
-
   const { width } = useWindowDimensions();
 
   const params = useLocalSearchParams<{
     id?: string;
   }>();
 
-  const [jobOrder, setJobOrder] = useState<JobOrder | null>(null);
-  const [items, setItems] = useState<JobOrderItem[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [customer, setCustomer] = useState<Customer | null>(null);
+  const {
+    isAdmin,
+    jobOrder,
+    items,
+    payments,
+    activities,
+    customer,
+    createdByUser,
+    voidedByUser,
 
-  const [loading, setLoading] = useState(true);
-  const [savingPayment, setSavingPayment] = useState(false);
-  const [error, setError] = useState("");
+    loading,
+    savingPayment,
+    voiding,
+    error,
 
-  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [cashReceived, setCashReceived] = useState("");
-  const [referenceNumber, setReferenceNumber] = useState("");
-  const [paymentNote, setPaymentNote] = useState("");
+    paymentModalVisible,
+    voidModalVisible,
+    activityModalVisible,
+    selectedActivity,
+
+    paymentMethod,
+    paymentAmount,
+    cashReceived,
+    referenceNumber,
+    paymentNote,
+    voidReason,
+
+    setCashReceived,
+    setReferenceNumber,
+    setPaymentNote,
+    setVoidReason,
+
+    openActivity,
+    closeActivityModal,
+
+    openPaymentModal,
+    closePaymentModal,
+    handlePaymentAmountChange,
+    handlePaymentMethodChange,
+    handleSavePayment,
+
+    openVoidModal,
+    closeVoidModal,
+    handleVoidJobOrder,
+
+    formatCurrency,
+  } = useJobOrderDetails({
+    id: params.id,
+  });
 
   const contentWidth = Math.min(width, MAX_CONTENT_WIDTH);
 
-  useEffect(() => {
-    loadJobOrder();
-  }, [params.id]);
-
-  async function loadJobOrder() {
-    if (!params.id) {
-      setError("The Job Order could not be identified.");
-      setLoading(false);
-      return;
+  function formatDateTime(value: string | null): string {
+    if (!value) {
+      return "";
     }
 
-    const id = Number(params.id);
+    const date = new Date(value);
 
-    if (!Number.isInteger(id)) {
-      setError("The Job Order ID is invalid.");
-      setLoading(false);
-      return;
+    if (Number.isNaN(date.getTime())) {
+      return value;
     }
 
-    try {
-      setLoading(true);
-      setError("");
-
-      const [jobOrderData, itemData, paymentData] = await Promise.all([
-        getJobOrderById(id),
-        getJobOrderItems(id),
-        getJobOrderPayments(id),
-      ]);
-
-      if (!jobOrderData) {
-        throw new Error("The Job Order could not be found.");
-      }
-
-      setJobOrder(jobOrderData);
-      setItems(itemData);
-      setPayments(paymentData);
-
-      const customerData = await getCustomerById(jobOrderData.customerId);
-
-      setCustomer(customerData);
-    } catch (err) {
-      console.error("Failed to load Job Order:", err);
-
-      setError(
-        err instanceof Error ? err.message : "Unable to load the Job Order.",
-      );
-    } finally {
-      setLoading(false);
-    }
+    return date.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
   }
 
-  function formatCurrency(amount: number): string {
-    return `₱${amount.toFixed(2)}`;
-  }
-
-  function getStatusLabel() {
+  function getStatusLabel(): string {
     if (!jobOrder) {
       return "";
+    }
+
+    if (jobOrder.isVoided) {
+      return "VOIDED";
     }
 
     switch (jobOrder.paymentStatus) {
@@ -153,180 +159,89 @@ export default function JobOrderCreatedScreen() {
     }
   }
 
-  function openPaymentModal() {
-    if (!jobOrder || jobOrder.balance <= 0) {
-      return;
-    }
-
-    setPaymentMethod("cash");
-    setPaymentAmount(jobOrder.balance.toFixed(2));
-    setCashReceived(jobOrder.balance.toFixed(2));
-    setReferenceNumber("");
-    setPaymentNote("");
-    setPaymentModalVisible(true);
-  }
-
-  function closePaymentModal() {
-    if (savingPayment) {
-      return;
-    }
-
-    setPaymentModalVisible(false);
-  }
-
-  function handlePaymentAmountChange(value: string) {
-    setPaymentAmount(value);
-
-    if (paymentMethod === "cash") {
-      setCashReceived(value);
-    }
-  }
-
-  function handlePaymentMethodChange(method: PaymentMethod) {
-    setPaymentMethod(method);
-
-    if (method === "cash") {
-      setCashReceived(paymentAmount);
-    } else {
-      setCashReceived("");
-    }
-  }
-
-  async function handleSavePayment() {
+  async function handlePrintReceipt() {
     if (!jobOrder) {
       return;
     }
 
-    const amount = Number(paymentAmount);
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      Alert.alert("Invalid Payment", "Please enter a payment amount.");
-      return;
-    }
-
-    if (amount > jobOrder.balance) {
-      Alert.alert(
-        "Invalid Payment",
-        "The payment cannot be greater than the remaining balance.",
-      );
-      return;
-    }
-
-    const input: PaymentInput = {
-      paymentMethod,
-      amount,
-      cashReceived: paymentMethod === "cash" ? Number(cashReceived) : undefined,
-      referenceNumber:
-        paymentMethod === "gcash" ? referenceNumber.trim() : undefined,
-      paymentNote: paymentMethod === "other" ? paymentNote.trim() : undefined,
-    };
-
     try {
-      setSavingPayment(true);
+      const [receiptData, settings] = await Promise.all([
+        getReceiptData(jobOrder.id),
+        getAppSettings(),
+      ]);
 
-      const result = await addJobOrderPayment(jobOrder.id, input);
-
-      setJobOrder(result.jobOrder);
-      setPayments((current) => [...current, result.payment]);
-
-      setPaymentModalVisible(false);
-
-      Alert.alert(
-        "Payment Saved",
-        result.jobOrder.paymentStatus === "paid"
-          ? "The Job Order is now fully paid."
-          : `Payment recorded. Remaining balance: ${formatCurrency(
-              result.jobOrder.balance,
-            )}.`,
+      const receiptText = formatReceipt(
+        receiptData,
+        settings.receiptPaperWidth,
       );
-    } catch (err) {
-      console.error("Failed to save payment:", err);
 
-      Alert.alert(
-        "Unable to Save Payment",
-        err instanceof Error ? err.message : "Unable to save the payment.",
+      console.log(
+        `\n========== RECEIPT ${jobOrder.jobOrderNumber} ==========\n${receiptText}\n========== END RECEIPT ==========\n`,
       );
-    } finally {
-      setSavingPayment(false);
+      const hex = await getEscPosHexForJobOrder(
+        jobOrder.id,
+        settings.receiptPaperWidth,
+      );
+      console.log(
+        "\n========== ESC/POS HEX JO-000022 ==========\n" +
+          hex +
+          "\n========== END ESC/POS HEX ==========\n",
+      );
+      console.log(
+        "Printer connection state:",
+        printerService.getConnectionState(),
+      );
+    } catch (error) {
+      console.error("Unable to prepare receipt:", error);
     }
-  }
-
-  function handlePrintStub() {
-    console.log("Print Claim Stub:", jobOrder?.jobOrderNumber);
   }
 
   function handleDone() {
     router.replace("/orders");
   }
 
-  if (loading) {
-    return (
-      <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color={colors.primary} />
+  function handleActivityPress() {
+    if (activities.length > 0) {
+      openActivity(activities[0]);
+    }
+  }
 
-        <Text style={styles.loadingText}>Loading Job Order...</Text>
-      </View>
-    );
+  if (loading) {
+    return <LoadingState message="Loading Job Order..." />;
   }
 
   if (error || !jobOrder) {
     return (
-      <View style={styles.loadingScreen}>
-        <View style={styles.errorIcon}>
-          <Ionicons
-            name="alert-circle-outline"
-            size={30}
-            color={colors.danger}
+      <View style={styles.errorScreen}>
+        <ErrorState
+          title="Unable to load Job Order"
+          message={error || "The Job Order could not be loaded."}
+        />
+
+        <View style={localStyles.errorAction}>
+          <AppButton
+            title="Go to Orders"
+            icon="receipt-outline"
+            onPress={() => router.replace("/orders")}
           />
         </View>
-
-        <Text style={styles.errorTitle}>Unable to load Job Order</Text>
-
-        <Text style={styles.errorText}>
-          {error || "The Job Order could not be loaded."}
-        </Text>
-
-        <AppButton
-          title="Go to Orders"
-          icon="receipt-outline"
-          onPress={() => router.replace("/orders")}
-        />
       </View>
     );
   }
 
   return (
     <View style={styles.screen}>
-      <View style={styles.hero}>
-        <View
-          style={[
-            styles.heroInner,
-            {
-              maxWidth: MAX_CONTENT_WIDTH,
-            },
-          ]}
-        >
-          <View style={styles.heroIcon}>
-            <Ionicons
-              name={
-                jobOrder.paymentStatus === "paid"
-                  ? "checkmark-circle"
-                  : "receipt"
-              }
-              size={30}
-              color={
-                jobOrder.paymentStatus === "paid"
-                  ? colors.success
-                  : colors.primary
-              }
-            />
-          </View>
-
-          <Text style={styles.heroTitle}>Job Order Details</Text>
-
-          <Text style={styles.heroSubtitle}>{jobOrder.jobOrderNumber}</Text>
-        </View>
-      </View>
+      <PageHero
+        icon={
+          jobOrder.isVoided
+            ? "close-circle"
+            : jobOrder.paymentStatus === "paid"
+              ? "checkmark-circle"
+              : "receipt"
+        }
+        title="Job Order Details"
+        subtitle={jobOrder.jobOrderNumber}
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -334,334 +249,100 @@ export default function JobOrderCreatedScreen() {
           styles.content,
           {
             maxWidth: contentWidth,
+            paddingBottom: spacing.xl + 24,
           },
         ]}
       >
-        <AppCard padding={spacing.lg} style={styles.summaryCard}>
-          <Text style={styles.jobOrderLabel}>JOB ORDER</Text>
+        <JobOrderSummaryCard
+          jobOrder={jobOrder}
+          customer={customer}
+          createdByUser={createdByUser}
+          formatCurrency={formatCurrency}
+          getStatusLabel={getStatusLabel}
+        />
 
-          <Text style={styles.jobOrderNumber}>{jobOrder.jobOrderNumber}</Text>
+        {jobOrder.isVoided && (
+          <AppCard padding={spacing.lg} style={styles.voidedCard}>
+            <View style={styles.voidedHeader}>
+              <View style={localStyles.voidedIcon}>
+                <Ionicons
+                  name="close-circle-outline"
+                  size={23}
+                  color={colors.danger}
+                />
+              </View>
 
-          <View style={styles.statusBadge}>
-            <View
-              style={[
-                styles.statusDot,
-                jobOrder.paymentStatus === "paid"
-                  ? styles.statusDotPaid
-                  : jobOrder.paymentStatus === "partially_paid"
-                    ? styles.statusDotPartial
-                    : styles.statusDotUnpaid,
-              ]}
-            />
+              <View style={localStyles.voidedHeaderText}>
+                <Text style={styles.voidedTitle}>Transaction Voided</Text>
 
-            <Text
-              style={[
-                styles.statusText,
-                jobOrder.paymentStatus === "paid"
-                  ? styles.statusTextPaid
-                  : jobOrder.paymentStatus === "partially_paid"
-                    ? styles.statusTextPartial
-                    : styles.statusTextUnpaid,
-              ]}
-            >
-              {getStatusLabel()}
-            </Text>
-          </View>
-
-          <View style={styles.customerBlock}>
-            <Text style={styles.customerLabel}>CUSTOMER</Text>
-
-            <Text style={styles.customerName}>
-              {customer?.name || "Customer"}
-            </Text>
-          </View>
-
-          <View style={styles.totalBlock}>
-            <Text style={styles.totalLabel}>TOTAL</Text>
-
-            <Text style={styles.totalValue}>
-              {formatCurrency(jobOrder.total)}
-            </Text>
-          </View>
-
-          <View style={styles.summaryDivider} />
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Amount Paid</Text>
-
-            <Text style={styles.summaryValue}>
-              {formatCurrency(jobOrder.amountPaid)}
-            </Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Balance</Text>
-
-            <Text
-              style={[
-                styles.summaryValue,
-                jobOrder.balance > 0 && styles.balanceValue,
-              ]}
-            >
-              {formatCurrency(jobOrder.balance)}
-            </Text>
-          </View>
-        </AppCard>
-
-        <AppCard padding={spacing.lg}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionIcon}>
-              <Ionicons
-                name="basket-outline"
-                size={21}
-                color={colors.primary}
-              />
-            </View>
-
-            <View style={styles.sectionHeaderText}>
-              <Text style={styles.sectionTitle}>Order Items</Text>
-
-              <Text style={styles.sectionSubtitle}>
-                Items included in this Job Order
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.itemList}>
-            {items.map((item, index) => (
-              <View
-                key={item.id}
-                style={[
-                  styles.orderItem,
-                  index < items.length - 1 && styles.orderItemDivider,
-                ]}
-              >
-                <View style={styles.orderItemMain}>
-                  <Text style={styles.orderItemName}>{item.itemName}</Text>
-
-                  <Text style={styles.orderItemQuantity}>
-                    {item.quantity} × {formatCurrency(item.unitPrice)}
-                  </Text>
-                </View>
-
-                <Text style={styles.orderItemTotal}>
-                  {formatCurrency(item.lineTotal)}
+                <Text style={localStyles.voidedSubtitle}>
+                  This transaction is retained for historical records.
                 </Text>
               </View>
-            ))}
-          </View>
+            </View>
 
-          <View style={styles.orderTotals}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
+            <View style={localStyles.voidedDivider} />
 
-              <Text style={styles.summaryValue}>
-                {formatCurrency(jobOrder.subtotal)}
+            <View style={localStyles.voidedInfoRow}>
+              <Text style={localStyles.voidedInfoLabel}>VOIDED BY</Text>
+
+              <Text style={localStyles.voidedInfoValue}>
+                {voidedByUser?.fullName || "Unknown User"}
               </Text>
             </View>
 
-            {jobOrder.discountAmount > 0 && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Discount</Text>
+            <View style={localStyles.voidedInfoRow}>
+              <Text style={localStyles.voidedInfoLabel}>VOIDED AT</Text>
 
-                <Text style={styles.discountValue}>
-                  -{formatCurrency(jobOrder.discountAmount)}
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.totalDivider} />
-
-            <View style={styles.summaryRow}>
-              <Text style={styles.orderTotalLabel}>Total</Text>
-
-              <Text style={styles.orderTotalValue}>
-                {formatCurrency(jobOrder.total)}
-              </Text>
-            </View>
-          </View>
-        </AppCard>
-
-        <AppCard padding={spacing.lg}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionIcon}>
-              <Ionicons name="card-outline" size={21} color={colors.primary} />
-            </View>
-
-            <View style={styles.sectionHeaderText}>
-              <Text style={styles.sectionTitle}>Payment History</Text>
-
-              <Text style={styles.sectionSubtitle}>
-                Payments recorded for this Job Order
-              </Text>
-            </View>
-          </View>
-
-          {payments.length === 0 ? (
-            <View style={styles.emptyPayments}>
-              <Ionicons
-                name="wallet-outline"
-                size={28}
-                color={colors.textMuted}
-              />
-
-              <Text style={styles.emptyPaymentsText}>
-                No payments have been recorded yet.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.paymentList}>
-              {payments.map((payment, index) => (
-                <View
-                  key={payment.id}
-                  style={[
-                    styles.paymentRow,
-                    index < payments.length - 1 && styles.paymentRowDivider,
-                  ]}
-                >
-                  <View style={styles.paymentIcon}>
-                    <Ionicons
-                      name={
-                        payment.paymentMethod === "cash"
-                          ? "cash-outline"
-                          : payment.paymentMethod === "gcash"
-                            ? "phone-portrait-outline"
-                            : "card-outline"
-                      }
-                      size={19}
-                      color={colors.primary}
-                    />
-                  </View>
-
-                  <View style={styles.paymentMain}>
-                    <Text style={styles.paymentMethod}>
-                      {getPaymentMethodLabel(payment.paymentMethod)}
-                    </Text>
-
-                    {payment.referenceNumber && (
-                      <Text style={styles.paymentMeta}>
-                        Ref: {payment.referenceNumber}
-                      </Text>
-                    )}
-
-                    {payment.paymentNote && (
-                      <Text style={styles.paymentMeta}>
-                        {payment.paymentNote}
-                      </Text>
-                    )}
-                  </View>
-
-                  <Text style={styles.paymentAmount}>
-                    {formatCurrency(payment.amount)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {jobOrder.balance > 0 && !jobOrder.isVoided && (
-            <View style={styles.paymentAction}>
-              <AppButton
-                title={
-                  jobOrder.paymentStatus === "unpaid"
-                    ? "Make Payment"
-                    : "Pay Remaining Balance"
-                }
-                icon="card-outline"
-                fullWidth
-                onPress={openPaymentModal}
-              />
-            </View>
-          )}
-        </AppCard>
-
-        <AppCard padding={spacing.lg} style={styles.stubCard}>
-          <View style={styles.stubHeader}>
-            <View style={styles.stubIcon}>
-              <Ionicons
-                name="ticket-outline"
-                size={22}
-                color={colors.primary}
-              />
-            </View>
-
-            <View style={styles.stubHeaderText}>
-              <Text style={styles.stubTitle}>Acknowledgment / Claim Stub</Text>
-
-              <Text style={styles.stubSubtitle}>
-                Give this to the customer for claiming
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.stubPreview}>
-            <Text style={styles.stubShopTitle}>LAUNDRY SHOP</Text>
-
-            <Text style={styles.stubDocumentTitle}>LAUNDRY ACKNOWLEDGMENT</Text>
-
-            <View style={styles.stubDivider} />
-
-            <View style={styles.stubRow}>
-              <Text style={styles.stubLabel}>Job Order</Text>
-
-              <Text style={styles.stubValue}>{jobOrder.jobOrderNumber}</Text>
-            </View>
-
-            <View style={styles.stubRow}>
-              <Text style={styles.stubLabel}>Customer</Text>
-
-              <Text style={styles.stubValue}>
-                {customer?.name || "Customer"}
+              <Text style={localStyles.voidedInfoValue}>
+                {formatDateTime(jobOrder.voidedAt)}
               </Text>
             </View>
 
-            <View style={styles.stubDivider} />
+            <View style={localStyles.voidReasonBlock}>
+              <Text style={localStyles.voidedInfoLabel}>REASON</Text>
 
-            {items.map((item) => (
-              <View key={item.id} style={styles.stubItem}>
-                <View style={styles.stubItemMain}>
-                  <Text style={styles.stubItemName}>{item.itemName}</Text>
-
-                  <Text style={styles.stubItemQuantity}>
-                    {item.quantity} × {formatCurrency(item.unitPrice)}
-                  </Text>
-                </View>
-
-                <Text style={styles.stubItemTotal}>
-                  {formatCurrency(item.lineTotal)}
-                </Text>
-              </View>
-            ))}
-
-            <View style={styles.stubDivider} />
-
-            <View style={styles.stubTotalRow}>
-              <Text style={styles.stubTotalLabel}>TOTAL</Text>
-
-              <Text style={styles.stubTotalValue}>
-                {formatCurrency(jobOrder.total)}
+              <Text style={localStyles.voidReasonText}>
+                {jobOrder.voidReason || "No reason recorded."}
               </Text>
             </View>
+          </AppCard>
+        )}
 
-            <View style={styles.stubStatus}>
-              <Text style={styles.stubStatusLabel}>PAYMENT STATUS</Text>
+        <JobOrderItemsCard
+          jobOrder={jobOrder}
+          items={items}
+          formatCurrency={formatCurrency}
+        />
 
-              <Text style={styles.stubStatusValue}>{getStatusLabel()}</Text>
-            </View>
+        <JobOrderPaymentCard
+          jobOrder={jobOrder}
+          payments={payments}
+          formatCurrency={formatCurrency}
+          getPaymentMethodLabel={getPaymentMethodLabel}
+          onMakePayment={openPaymentModal}
+        />
 
-            <Text style={styles.stubFooter}>
-              Please present this stub when claiming your laundry.
-            </Text>
-          </View>
+        <JobOrderActivityLink
+          activityCount={activities.length}
+          onPress={handleActivityPress}
+        />
 
-          <AppButton
-            title="Print Claim Stub"
-            icon="print-outline"
-            variant="secondary"
-            fullWidth
-            onPress={handlePrintStub}
+        {isAdmin && !jobOrder.isVoided && (
+          <JobOrderTransactionActions
+            onVoid={openVoidModal}
+            voiding={voiding}
           />
-        </AppCard>
+        )}
+
+        <AppButton
+          title="Print Receipt"
+          icon="print-outline"
+          fullWidth
+          onPress={handlePrintReceipt}
+        />
+
+        <View style={localStyles.buttonSpacing} />
 
         <AppButton
           title="Done"
@@ -671,6 +352,106 @@ export default function JobOrderCreatedScreen() {
         />
       </ScrollView>
 
+      {/* Activity Modal */}
+      <Modal
+        visible={activityModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeActivityModal}
+      >
+        <View style={modalStyles.activityModalContainer}>
+          <Pressable
+            style={modalStyles.backdrop}
+            onPress={closeActivityModal}
+          />
+
+          <View style={modalStyles.activityModal}>
+            <View style={modalStyles.handle} />
+
+            <View style={modalStyles.header}>
+              <View style={modalStyles.headerText}>
+                <Text style={modalStyles.title}>Job Order Activity</Text>
+
+                <Text style={modalStyles.subtitle}>
+                  {jobOrder.jobOrderNumber}
+                </Text>
+              </View>
+
+              <Pressable
+                style={modalStyles.closeButton}
+                onPress={closeActivityModal}
+              >
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            {selectedActivity ? (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={modalStyles.activityContent}
+              >
+                <View style={modalStyles.activityDetailHeader}>
+                  <View
+                    style={[
+                      modalStyles.activityIconContainer,
+                      {
+                        backgroundColor: getActivityConfig(
+                          selectedActivity.action,
+                        ).backgroundColor,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={getActivityConfig(selectedActivity.action).icon}
+                      size={24}
+                      color={getActivityConfig(selectedActivity.action).color}
+                    />
+                  </View>
+
+                  <View style={modalStyles.activityDetailText}>
+                    <Text style={modalStyles.activityDetailTitle}>
+                      {getActivityConfig(selectedActivity.action).label}
+                    </Text>
+
+                    <Text style={modalStyles.activityDetailDate}>
+                      {formatDateTime(selectedActivity.createdAt)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={modalStyles.activityUserRow}>
+                  <Ionicons
+                    name="person-outline"
+                    size={17}
+                    color={colors.textMuted}
+                  />
+
+                  <Text style={modalStyles.activityUserText}>
+                    {selectedActivity.userName}
+                  </Text>
+                </View>
+
+                {selectedActivity.action === "item_removed" ? (
+                  <RemovedItemsSection
+                    items={getRemovedItems(selectedActivity)}
+                    formatCurrency={formatCurrency}
+                  />
+                ) : (
+                  <ActivityChangesSection
+                    changes={selectedActivity.changes}
+                    formatValue={formatActivityChangeValue}
+                    formatFieldName={formatFieldName}
+                  />
+                )}
+
+                <View style={modalStyles.bottomSpace} />
+              </ScrollView>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Payment Modal */}
       <Modal
         visible={paymentModalVisible}
         transparent
@@ -678,25 +459,25 @@ export default function JobOrderCreatedScreen() {
         onRequestClose={closePaymentModal}
       >
         <KeyboardAvoidingView
-          style={styles.modalContainer}
+          style={modalStyles.modalContainer}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <Pressable style={styles.modalBackdrop} onPress={closePaymentModal} />
+          <Pressable style={modalStyles.backdrop} onPress={closePaymentModal} />
 
-          <View style={styles.paymentModal}>
-            <View style={styles.modalHandle} />
+          <View style={modalStyles.paymentModal}>
+            <View style={modalStyles.handle} />
 
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Make Payment</Text>
+            <View style={modalStyles.header}>
+              <View style={modalStyles.headerText}>
+                <Text style={modalStyles.title}>Make Payment</Text>
 
-                <Text style={styles.modalSubtitle}>
+                <Text style={modalStyles.subtitle}>
                   Balance: {formatCurrency(jobOrder.balance)}
                 </Text>
               </View>
 
               <Pressable
-                style={styles.closeButton}
+                style={modalStyles.closeButton}
                 onPress={closePaymentModal}
                 disabled={savingPayment}
               >
@@ -707,12 +488,12 @@ export default function JobOrderCreatedScreen() {
             <ScrollView
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.modalContent}
+              contentContainerStyle={modalStyles.modalContent}
             >
-              <Text style={styles.inputLabel}>Payment Amount</Text>
+              <Text style={modalStyles.inputLabel}>Payment Amount</Text>
 
-              <View style={styles.amountInputWrapper}>
-                <Text style={styles.currencyPrefix}>₱</Text>
+              <View style={modalStyles.amountInputWrapper}>
+                <Text style={modalStyles.currencyPrefix}>₱</Text>
 
                 <TextInput
                   value={paymentAmount}
@@ -720,17 +501,17 @@ export default function JobOrderCreatedScreen() {
                   keyboardType="decimal-pad"
                   placeholder="0.00"
                   placeholderTextColor={colors.textMuted}
-                  style={styles.amountInput}
+                  style={modalStyles.amountInput}
                 />
               </View>
 
-              <Text style={styles.inputHint}>
+              <Text style={modalStyles.inputHint}>
                 Maximum payment: {formatCurrency(jobOrder.balance)}
               </Text>
 
-              <Text style={styles.inputLabel}>Payment Method</Text>
+              <Text style={modalStyles.inputLabel}>Payment Method</Text>
 
-              <View style={styles.methodRow}>
+              <View style={modalStyles.methodRow}>
                 {[
                   {
                     method: "cash" as PaymentMethod,
@@ -754,8 +535,8 @@ export default function JobOrderCreatedScreen() {
                     <Pressable
                       key={option.method}
                       style={[
-                        styles.methodOption,
-                        selected && styles.methodOptionSelected,
+                        modalStyles.methodOption,
+                        selected && modalStyles.methodOptionSelected,
                       ]}
                       onPress={() => handlePaymentMethodChange(option.method)}
                     >
@@ -767,8 +548,8 @@ export default function JobOrderCreatedScreen() {
 
                       <Text
                         style={[
-                          styles.methodLabel,
-                          selected && styles.methodLabelSelected,
+                          modalStyles.methodLabel,
+                          selected && modalStyles.methodLabelSelected,
                         ]}
                       >
                         {option.label}
@@ -780,7 +561,7 @@ export default function JobOrderCreatedScreen() {
 
               {paymentMethod === "cash" && (
                 <>
-                  <Text style={styles.inputLabel}>Cash Received</Text>
+                  <Text style={modalStyles.inputLabel}>Cash Received</Text>
 
                   <TextInput
                     value={cashReceived}
@@ -788,15 +569,15 @@ export default function JobOrderCreatedScreen() {
                     keyboardType="decimal-pad"
                     placeholder="0.00"
                     placeholderTextColor={colors.textMuted}
-                    style={styles.textInput}
+                    style={modalStyles.textInput}
                   />
 
                   {Number(cashReceived) >= Number(paymentAmount) &&
                     Number(paymentAmount) > 0 && (
-                      <View style={styles.changePreview}>
-                        <Text style={styles.changeLabel}>Change</Text>
+                      <View style={modalStyles.changePreview}>
+                        <Text style={modalStyles.changeLabel}>Change</Text>
 
-                        <Text style={styles.changeValue}>
+                        <Text style={modalStyles.changeValue}>
                           {formatCurrency(
                             Math.max(
                               Number(cashReceived) - Number(paymentAmount),
@@ -811,9 +592,9 @@ export default function JobOrderCreatedScreen() {
 
               {paymentMethod === "gcash" && (
                 <>
-                  <Text style={styles.inputLabel}>
+                  <Text style={modalStyles.inputLabel}>
                     Reference Number
-                    <Text style={styles.optionalLabel}> (optional)</Text>
+                    <Text style={modalStyles.optionalLabel}> (optional)</Text>
                   </Text>
 
                   <TextInput
@@ -821,7 +602,7 @@ export default function JobOrderCreatedScreen() {
                     onChangeText={setReferenceNumber}
                     placeholder="Enter GCash reference"
                     placeholderTextColor={colors.textMuted}
-                    style={styles.textInput}
+                    style={modalStyles.textInput}
                     autoCapitalize="characters"
                   />
                 </>
@@ -829,27 +610,27 @@ export default function JobOrderCreatedScreen() {
 
               {paymentMethod === "other" && (
                 <>
-                  <Text style={styles.inputLabel}>Payment Details</Text>
+                  <Text style={modalStyles.inputLabel}>Payment Details</Text>
 
                   <TextInput
                     value={paymentNote}
                     onChangeText={setPaymentNote}
                     placeholder="e.g. Maya, bank transfer, credit card"
                     placeholderTextColor={colors.textMuted}
-                    style={[styles.textInput, styles.textArea]}
+                    style={[modalStyles.textInput, modalStyles.textArea]}
                     multiline
                     textAlignVertical="top"
                   />
                 </>
               )}
 
-              <View style={styles.modalBalanceCard}>
+              <View style={modalStyles.balanceCard}>
                 <View>
-                  <Text style={styles.modalBalanceLabel}>
+                  <Text style={modalStyles.balanceLabel}>
                     Remaining Balance
                   </Text>
 
-                  <Text style={styles.modalBalanceValue}>
+                  <Text style={modalStyles.balanceValue}>
                     {formatCurrency(
                       Math.max(
                         jobOrder.balance - Number(paymentAmount || 0),
@@ -874,8 +655,96 @@ export default function JobOrderCreatedScreen() {
                 disabled={savingPayment}
               />
 
-              <View style={styles.modalBottomSpace} />
+              <View style={modalStyles.bottomSpace} />
             </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Void Modal */}
+      <Modal
+        visible={voidModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeVoidModal}
+      >
+        <KeyboardAvoidingView
+          style={modalStyles.voidModalContainer}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <Pressable style={modalStyles.backdrop} onPress={closeVoidModal} />
+
+          <View style={modalStyles.voidModal}>
+            <View style={modalStyles.voidIcon}>
+              <Ionicons
+                name="warning-outline"
+                size={28}
+                color={colors.danger}
+              />
+            </View>
+
+            <Text style={modalStyles.voidTitle}>Void Job Order?</Text>
+
+            <Text style={modalStyles.voidSubtitle}>
+              {jobOrder.jobOrderNumber} will be marked as voided and will no
+              longer accept payments.
+            </Text>
+
+            <View style={modalStyles.voidWarning}>
+              <Ionicons
+                name="information-circle-outline"
+                size={19}
+                color={colors.danger}
+              />
+
+              <Text style={modalStyles.voidWarningText}>
+                This action cannot be undone. The transaction will remain in the
+                records for audit purposes.
+              </Text>
+            </View>
+
+            <Text style={modalStyles.voidReasonLabel}>Reason for Voiding</Text>
+
+            <TextInput
+              value={voidReason}
+              onChangeText={setVoidReason}
+              placeholder="Enter the reason for voiding this transaction"
+              placeholderTextColor={colors.textMuted}
+              style={[modalStyles.textInput, modalStyles.voidReasonInput]}
+              multiline
+              textAlignVertical="top"
+              editable={!voiding}
+            />
+
+            <View style={modalStyles.voidActions}>
+              <Pressable
+                style={modalStyles.voidCancelButton}
+                onPress={closeVoidModal}
+                disabled={voiding}
+              >
+                <Text style={modalStyles.voidCancelText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  modalStyles.voidConfirmButton,
+                  pressed && modalStyles.voidConfirmButtonPressed,
+                  voiding && modalStyles.voidConfirmButtonDisabled,
+                ]}
+                onPress={handleVoidJobOrder}
+                disabled={voiding}
+              >
+                <Ionicons
+                  name="close-circle-outline"
+                  size={19}
+                  color={colors.surface}
+                />
+
+                <Text style={modalStyles.voidConfirmText}>
+                  {voiding ? "Voiding..." : "Void Transaction"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -883,487 +752,192 @@ export default function JobOrderCreatedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+function RemovedItemsSection({
+  items,
+  formatCurrency,
+}: {
+  items: {
+    itemName: string;
+    itemType?: "product" | "service" | "bundle";
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+  }[];
+  formatCurrency: (amount: number) => string;
+}) {
+  return (
+    <View style={modalStyles.changesContainer}>
+      <Text style={modalStyles.changesTitle}>Removed Items</Text>
 
-  hero: {
-    backgroundColor: colors.primaryLight,
+      {items.length === 0 ? (
+        <Text style={modalStyles.changesEmpty}>
+          No removed item details are available.
+        </Text>
+      ) : (
+        <View>
+          {items.map((item, index) => (
+            <View
+              key={`${item.itemName}-${index}`}
+              style={[
+                modalStyles.removedItem,
+                index < items.length - 1 && modalStyles.removedItemDivider,
+              ]}
+            >
+              <View style={modalStyles.removedItemMain}>
+                <Text style={modalStyles.removedItemName}>{item.itemName}</Text>
+
+                {item.itemType ? (
+                  <Text style={modalStyles.removedItemType}>
+                    {item.itemType === "service"
+                      ? "Service"
+                      : item.itemType === "bundle"
+                        ? "Bundle"
+                        : "Product"}
+                  </Text>
+                ) : null}
+
+                <Text style={modalStyles.removedItemQuantity}>
+                  {item.quantity} × {formatCurrency(item.unitPrice)}
+                </Text>
+              </View>
+
+              {item.lineTotal > 0 ? (
+                <Text style={modalStyles.removedItemTotal}>
+                  {formatCurrency(item.lineTotal)}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function ActivityChangesSection({
+  changes,
+  formatValue,
+  formatFieldName,
+}: {
+  changes: Record<string, AuditChange>;
+  formatValue: (value: unknown) => string;
+  formatFieldName: (value: string) => string;
+}) {
+  const entries = Object.entries(changes);
+
+  return (
+    <View style={modalStyles.changesContainer}>
+      <Text style={modalStyles.changesTitle}>Details</Text>
+
+      {entries.length === 0 ? (
+        <Text style={modalStyles.changesEmpty}>
+          No additional details were recorded.
+        </Text>
+      ) : (
+        <View>
+          {entries.map(([field, change]) => (
+            <View key={field} style={modalStyles.changeRow}>
+              <Text style={modalStyles.changeField}>
+                {formatFieldName(field)}
+              </Text>
+
+              <View style={modalStyles.changeValues}>
+                <Text style={modalStyles.changeFrom}>
+                  {formatValue(change.from)}
+                </Text>
+
+                <Ionicons
+                  name="arrow-forward"
+                  size={15}
+                  color={colors.textMuted}
+                />
+
+                <Text style={modalStyles.changeTo}>
+                  {formatValue(change.to)}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const localStyles = StyleSheet.create({
+  errorAction: {
     paddingHorizontal: PAGE_PADDING,
-    paddingTop: 54,
-    paddingBottom: 20,
-  },
-
-  heroInner: {
-    width: "100%",
-    alignSelf: "center",
-    alignItems: "center",
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  heroTitle: {
     marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
   },
 
-  heroSubtitle: {
-    marginTop: spacing.xs,
+  buttonSpacing: {
+    height: spacing.md,
+  },
+
+  voidedIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: theme.radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.dangerLight,
+  },
+
+  voidedHeaderText: {
+    flex: 1,
+    marginLeft: spacing.sm,
+  },
+
+  voidedSubtitle: {
     ...typography.small,
     color: colors.textSecondary,
-    textAlign: "center",
-  },
-
-  content: {
-    width: "100%",
-    alignSelf: "center",
-    padding: PAGE_PADDING,
-    paddingBottom: 40,
-    gap: spacing.lg,
-  },
-
-  summaryCard: {
-    alignItems: "center",
-  },
-
-  jobOrderLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    letterSpacing: 1,
-  },
-
-  jobOrderNumber: {
     marginTop: spacing.xs,
-    ...typography.h1,
-    color: colors.text,
   },
 
-  statusBadge: {
-    marginTop: spacing.md,
-    minHeight: 32,
-    paddingHorizontal: spacing.md,
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surfaceSoft,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-  },
-
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-
-  statusDotPaid: {
-    backgroundColor: colors.success,
-  },
-
-  statusDotPartial: {
-    backgroundColor: colors.warning,
-  },
-
-  statusDotUnpaid: {
-    backgroundColor: colors.textMuted,
-  },
-
-  statusText: {
-    ...typography.caption,
-  },
-
-  statusTextPaid: {
-    color: colors.success,
-  },
-
-  statusTextPartial: {
-    color: colors.warning,
-  },
-
-  statusTextUnpaid: {
-    color: colors.textSecondary,
-  },
-
-  customerBlock: {
-    width: "100%",
-    alignItems: "center",
-    marginTop: spacing.lg,
-  },
-
-  customerLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    letterSpacing: 0.8,
-  },
-
-  customerName: {
-    marginTop: 2,
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-
-  totalBlock: {
-    marginTop: spacing.lg,
-    alignItems: "center",
-  },
-
-  totalLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    letterSpacing: 0.8,
-  },
-
-  totalValue: {
-    marginTop: 2,
-    ...typography.display,
-    color: colors.primaryDark,
-  },
-
-  summaryDivider: {
-    width: "100%",
+  voidedDivider: {
     height: 1,
     backgroundColor: colors.border,
     marginVertical: spacing.md,
   },
 
-  summaryRow: {
-    width: "100%",
+  voidedInfoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    minHeight: 32,
+    alignItems: "flex-start",
+    paddingVertical: spacing.xs,
   },
 
-  summaryLabel: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-
-  summaryValue: {
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-
-  balanceValue: {
-    color: colors.warning,
-  },
-
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.lg,
-  },
-
-  sectionIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: colors.primaryLight,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: spacing.sm,
-  },
-
-  sectionHeaderText: {
-    flex: 1,
-  },
-
-  sectionTitle: {
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-
-  sectionSubtitle: {
+  voidedInfoLabel: {
     ...typography.caption,
     color: colors.textSecondary,
-    marginTop: 2,
+    fontWeight: "700",
   },
 
-  itemList: {
-    width: "100%",
-  },
-
-  orderItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-
-  orderItemDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-
-  orderItemMain: {
-    flex: 1,
-  },
-
-  orderItemName: {
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-
-  orderItemQuantity: {
-    ...typography.caption,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-
-  orderItemTotal: {
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-
-  orderTotals: {
-    marginTop: spacing.md,
-  },
-
-  totalDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: spacing.sm,
-  },
-
-  orderTotalLabel: {
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-
-  orderTotalValue: {
-    ...typography.h3,
-    color: colors.primaryDark,
-  },
-
-  discountValue: {
-    ...typography.bodyMedium,
-    color: colors.success,
-  },
-
-  paymentList: {
-    width: "100%",
-  },
-
-  paymentRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-
-  paymentRowDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-
-  paymentIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.primaryLight,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  paymentMain: {
-    flex: 1,
-  },
-
-  paymentMethod: {
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-
-  paymentMeta: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-
-  paymentAmount: {
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-
-  emptyPayments: {
-    alignItems: "center",
-    paddingVertical: spacing.lg,
-  },
-
-  emptyPaymentsText: {
-    marginTop: spacing.sm,
-    ...typography.small,
-    color: colors.textMuted,
-    textAlign: "center",
-  },
-
-  paymentAction: {
-    marginTop: spacing.lg,
-    paddingTop: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-
-  stubCard: {
-    width: "100%",
-  },
-
-  stubHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.lg,
-  },
-
-  stubIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: colors.primaryLight,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: spacing.sm,
-  },
-
-  stubHeaderText: {
-    flex: 1,
-  },
-
-  stubTitle: {
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-
-  stubSubtitle: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-
-  stubPreview: {
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: theme.radius.md,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-
-  stubShopTitle: {
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  stubDocumentTitle: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: "center",
-    marginTop: 2,
-  },
-
-  stubDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: spacing.md,
-  },
-
-  stubRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: spacing.md,
-    marginVertical: 3,
-  },
-
-  stubLabel: {
-    ...typography.small,
-    color: colors.textSecondary,
-  },
-
-  stubValue: {
-    flex: 1,
+  voidedInfoValue: {
     ...typography.small,
     color: colors.text,
+    fontWeight: "600",
     textAlign: "right",
-  },
-
-  stubItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: spacing.md,
-    marginVertical: 4,
-  },
-
-  stubItemMain: {
     flex: 1,
+    marginLeft: spacing.md,
   },
 
-  stubItemName: {
+  voidReasonBlock: {
+    marginTop: spacing.sm,
+  },
+
+  voidReasonText: {
     ...typography.small,
     color: colors.text,
+    lineHeight: 20,
+    marginTop: spacing.xs,
   },
+});
 
-  stubItemQuantity: {
-    ...typography.caption,
-    color: colors.textMuted,
-    marginTop: 1,
-  },
-
-  stubItemTotal: {
-    ...typography.small,
-    color: colors.text,
-  },
-
-  stubTotalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  stubTotalLabel: {
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-
-  stubTotalValue: {
-    ...typography.h3,
-    color: colors.primaryDark,
-  },
-
-  stubStatus: {
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    alignItems: "center",
-  },
-
-  stubStatusLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    letterSpacing: 0.8,
-  },
-
-  stubStatusValue: {
-    marginTop: 2,
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-
-  stubFooter: {
-    marginTop: spacing.lg,
-    ...typography.caption,
-    color: colors.textSecondary,
-    textAlign: "center",
+const modalStyles = StyleSheet.create({
+  activityModalContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
 
   modalContainer: {
@@ -1371,94 +945,261 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
 
-  modalBackdrop: {
+  voidModalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: PAGE_PADDING,
+  },
+
+  backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+  },
+
+  activityModal: {
+    width: "100%",
+    maxHeight: "88%",
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: theme.radius["2xl"],
+    borderTopRightRadius: theme.radius["2xl"],
+    overflow: "hidden",
   },
 
   paymentModal: {
     width: "100%",
-    maxHeight: "90%",
+    maxHeight: "92%",
     backgroundColor: colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: spacing.sm,
+    borderTopLeftRadius: theme.radius["2xl"],
+    borderTopRightRadius: theme.radius["2xl"],
+    overflow: "hidden",
   },
 
-  modalHandle: {
+  handle: {
     width: 42,
     height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderStrong,
+    borderRadius: theme.radius.full,
+    backgroundColor: colors.border,
     alignSelf: "center",
-    marginVertical: spacing.sm,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
 
-  modalHeader: {
+  header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    justifyContent: "space-between",
+    paddingHorizontal: PAGE_PADDING,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
 
-  modalTitle: {
-    ...typography.h2,
+  headerText: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+
+  title: {
+    ...typography.h3,
     color: colors.text,
   },
 
-  modalSubtitle: {
+  subtitle: {
     ...typography.small,
     color: colors.textSecondary,
-    marginTop: 2,
+    marginTop: spacing.xs,
   },
 
   closeButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceSoft,
+    borderRadius: theme.radius.full,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: colors.surfaceSoft,
+  },
+
+  activityContent: {
+    padding: PAGE_PADDING,
+    paddingBottom: spacing.xl,
+  },
+
+  activityDetailHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+
+  activityIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.md,
+  },
+
+  activityDetailText: {
+    flex: 1,
+  },
+
+  activityDetailTitle: {
+    ...typography.h3,
+    color: colors.text,
+  },
+
+  activityDetailDate: {
+    ...typography.small,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+
+  activityUserRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+  },
+
+  activityUserText: {
+    ...typography.small,
+    color: colors.textSecondary,
+    marginLeft: spacing.sm,
+  },
+
+  changesContainer: {
+    marginTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+  },
+
+  changesTitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginBottom: spacing.sm,
+  },
+
+  changesEmpty: {
+    ...typography.small,
+    color: colors.textMuted,
+  },
+
+  changeRow: {
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+
+  changeField: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: "700",
+    marginBottom: spacing.xs,
+  },
+
+  changeValues: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+
+  changeFrom: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+
+  changeTo: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: "600",
+    flex: 1,
+  },
+
+  removedItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+  },
+
+  removedItemDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+
+  removedItemMain: {
+    flex: 1,
+    paddingRight: spacing.md,
+  },
+
+  removedItemName: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: "600",
+  },
+
+  removedItemType: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+
+  removedItemQuantity: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+
+  removedItemTotal: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: "700",
+  },
+
+  bottomSpace: {
+    height: spacing.xl,
   },
 
   modalContent: {
-    padding: spacing.lg,
-    paddingBottom: 30,
+    padding: PAGE_PADDING,
+    paddingBottom: spacing.xl,
   },
 
   inputLabel: {
-    ...typography.bodyMedium,
+    ...typography.small,
     color: colors.text,
-    marginBottom: spacing.xs,
+    fontWeight: "700",
     marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
 
   amountInputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: theme.radius.md,
-    backgroundColor: colors.surface,
-    minHeight: 54,
-    paddingHorizontal: spacing.md,
+    position: "relative",
+    justifyContent: "center",
   },
 
   currencyPrefix: {
-    ...typography.h3,
+    position: "absolute",
+    left: spacing.md,
+    zIndex: 1,
     color: colors.textSecondary,
-    marginRight: spacing.xs,
+    fontSize: 16,
+    fontWeight: "600",
   },
 
   amountInput: {
-    flex: 1,
     ...typography.h3,
     color: colors.text,
-    paddingVertical: 0,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: theme.radius.lg,
+    backgroundColor: colors.surface,
+    paddingLeft: spacing.xl + spacing.sm,
+    paddingRight: spacing.md,
+    paddingVertical: spacing.md,
   },
 
   inputHint: {
@@ -1474,14 +1215,15 @@ const styles = StyleSheet.create({
 
   methodOption: {
     flex: 1,
-    minHeight: 76,
+    minHeight: 72,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: theme.radius.md,
-    backgroundColor: colors.surfaceSoft,
+    borderRadius: theme.radius.lg,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.xs,
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
   },
 
   methodOptionSelected: {
@@ -1492,116 +1234,182 @@ const styles = StyleSheet.create({
   methodLabel: {
     ...typography.caption,
     color: colors.textSecondary,
-    marginTop: 5,
+    fontWeight: "600",
   },
 
   methodLabelSelected: {
-    color: colors.primaryDark,
+    color: colors.primary,
   },
 
   textInput: {
-    minHeight: 50,
+    minHeight: 48,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: theme.radius.md,
+    borderColor: colors.border,
+    borderRadius: theme.radius.lg,
     backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    ...typography.body,
     color: colors.text,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    ...typography.body,
   },
 
   textArea: {
-    minHeight: 90,
-    paddingTop: spacing.md,
+    minHeight: 100,
   },
 
   optionalLabel: {
-    ...typography.caption,
     color: colors.textMuted,
+    fontWeight: "400",
   },
 
   changePreview: {
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.md,
-    minHeight: 46,
-    borderRadius: theme.radius.md,
-    backgroundColor: colors.successLight,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    borderRadius: theme.radius.lg,
+    backgroundColor: colors.successLight,
   },
 
   changeLabel: {
     ...typography.small,
     color: colors.textSecondary,
+    fontWeight: "600",
   },
 
   changeValue: {
-    ...typography.bodyMedium,
+    ...typography.body,
     color: colors.success,
+    fontWeight: "700",
   },
 
-  modalBalanceCard: {
+  balanceCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginTop: spacing.lg,
     marginBottom: spacing.lg,
     padding: spacing.md,
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.lg,
     backgroundColor: colors.primaryLight,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
   },
 
-  modalBalanceLabel: {
+  balanceLabel: {
     ...typography.caption,
     color: colors.textSecondary,
   },
 
-  modalBalanceValue: {
-    marginTop: 2,
+  balanceValue: {
     ...typography.h3,
-    color: colors.primaryDark,
+    color: colors.primary,
+    marginTop: spacing.xs,
   },
 
-  modalBottomSpace: {
-    height: spacing.md,
+  voidModal: {
+    width: "100%",
+    backgroundColor: colors.surface,
+    borderRadius: theme.radius["2xl"],
+    padding: PAGE_PADDING,
   },
 
-  loadingScreen: {
-    flex: 1,
-    backgroundColor: colors.background,
-    justifyContent: "center",
+  voidIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: theme.radius.full,
     alignItems: "center",
-    padding: spacing["2xl"],
-  },
-
-  loadingText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.md,
-  },
-
-  errorIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    justifyContent: "center",
     backgroundColor: colors.dangerLight,
-    justifyContent: "center",
-    alignItems: "center",
+    alignSelf: "center",
+    marginBottom: spacing.md,
   },
 
-  errorTitle: {
+  voidTitle: {
     ...typography.h3,
     color: colors.text,
-    marginTop: spacing.md,
+    textAlign: "center",
   },
 
-  errorText: {
+  voidSubtitle: {
     ...typography.small,
     color: colors.textSecondary,
     textAlign: "center",
-    maxWidth: 360,
-    marginTop: spacing.xs,
-    marginBottom: spacing.lg,
+    marginTop: spacing.sm,
+    lineHeight: 20,
+  },
+
+  voidWarning: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: colors.dangerLight,
+    borderRadius: theme.radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+  },
+
+  voidWarningText: {
+    ...typography.small,
+    color: colors.textSecondary,
+    flex: 1,
+    marginLeft: spacing.sm,
+    lineHeight: 19,
+  },
+
+  voidReasonLabel: {
+    ...typography.small,
+    color: colors.text,
+    fontWeight: "700",
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
+  },
+
+  voidReasonInput: {
+    minHeight: 110,
+  },
+
+  voidActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+
+  voidCancelButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: theme.radius.lg,
+    backgroundColor: colors.surfaceSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  voidCancelText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontWeight: "700",
+  },
+
+  voidConfirmButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: theme.radius.lg,
+    backgroundColor: colors.danger,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+  },
+
+  voidConfirmButtonPressed: {
+    opacity: 0.7,
+  },
+
+  voidConfirmButtonDisabled: {
+    opacity: 0.5,
+  },
+
+  voidConfirmText: {
+    ...typography.body,
+    color: colors.surface,
+    fontWeight: "700",
   },
 });

@@ -8,10 +8,15 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { checkDatabase, runMigrations } from "@/database";
+import { registerActions } from "@/hooks/registerActions";
+
+import LoginScreen from "./login";
 
 export default function RootLayout() {
   const [databaseReady, setDatabaseReady] = useState(false);
@@ -33,8 +38,10 @@ export default function RootLayout() {
         }
 
         console.log(
-          "Database OK — version 7 — customers, products, services, bundles, bundle items, Job Orders, and payments tables exist",
+          "Database OK — version 13 — customers, products, services, bundles, bundle items, Job Orders, payments, users, expenses, audit logs, inventory, and app settings tables exist",
         );
+
+        registerActions();
 
         if (mounted) {
           setDatabaseReady(true);
@@ -101,23 +108,59 @@ export default function RootLayout() {
   }
 
   return (
+    <AuthProvider>
+      <AuthenticatedApp />
+    </AuthProvider>
+  );
+}
+
+function AuthenticatedApp() {
+  const { isAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
+
+  if (!isAuthenticated) {
+    return <LoginScreen />;
+  }
+
+  return (
     <Tabs
       screenOptions={{
         headerShown: false,
+
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
+
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
+          borderTopWidth: 1,
+
+          height: 60 + insets.bottom,
+
+          paddingTop: spacing.xs,
+          paddingBottom: insets.bottom + spacing.xs,
+        },
+
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "500",
+        },
+
+        tabBarItemStyle: {
+          paddingVertical: spacing.xs,
         },
       }}
     >
+      {/* =========================
+          MAIN BOTTOM TABS
+          ========================= */}
+
       <Tabs.Screen
         name="index"
         options={{
-          title: "POS",
+          title: "Dashboard",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cart-outline" size={size} color={color} />
+            <Ionicons name="grid-outline" size={size} color={color} />
           ),
         }}
       />
@@ -133,41 +176,11 @@ export default function RootLayout() {
       />
 
       <Tabs.Screen
-        name="customers"
+        name="sales-report"
         options={{
-          title: "Customers",
+          title: "Reports",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="products"
-        options={{
-          title: "Products",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cube-outline" size={size} color={color} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="services"
-        options={{
-          title: "Services",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="construct-outline" size={size} color={color} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name="bundles"
-        options={{
-          title: "Bundles",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="gift-outline" size={size} color={color} />
+            <Ionicons name="bar-chart-outline" size={size} color={color} />
           ),
         }}
       />
@@ -186,10 +199,66 @@ export default function RootLayout() {
         }}
       />
 
+      {/* =========================
+          HIDDEN MANAGEMENT ROUTES
+          ========================= */}
+
+      <Tabs.Screen
+        name="products"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="services"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="bundles"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="activity-log"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="customers"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="settings"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      {/* =========================
+          CUSTOMER ROUTES
+          ========================= */}
+
       <Tabs.Screen
         name="add-customer"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
 
@@ -197,6 +266,7 @@ export default function RootLayout() {
         name="customer-details"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
 
@@ -204,13 +274,19 @@ export default function RootLayout() {
         name="edit-customer"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
+
+      {/* =========================
+          PRODUCT ROUTES
+          ========================= */}
 
       <Tabs.Screen
         name="add-product"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
 
@@ -218,6 +294,7 @@ export default function RootLayout() {
         name="product-details"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
 
@@ -225,13 +302,19 @@ export default function RootLayout() {
         name="edit-product"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
+
+      {/* =========================
+          SERVICE ROUTES
+          ========================= */}
 
       <Tabs.Screen
         name="add-service"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
 
@@ -239,6 +322,7 @@ export default function RootLayout() {
         name="service-details"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
 
@@ -246,13 +330,19 @@ export default function RootLayout() {
         name="edit-service"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
+
+      {/* =========================
+          BUNDLE ROUTES
+          ========================= */}
 
       <Tabs.Screen
         name="add-bundle"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
 
@@ -260,6 +350,7 @@ export default function RootLayout() {
         name="bundle-details"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
 
@@ -267,19 +358,179 @@ export default function RootLayout() {
         name="edit-bundle"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
+
+      {/* =========================
+          JOB ORDER ROUTES
+          ========================= */}
 
       <Tabs.Screen
         name="new-job-order"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
+
+      <Tabs.Screen
+        name="payment"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="job-order-created"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      {/* =========================
+          USER MANAGEMENT ROUTES
+          ========================= */}
+
       <Tabs.Screen
         name="users"
         options={{
           href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="user-details"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="add-user"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="edit-user"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      {/* =========================
+          EXPENSE ROUTES
+          ========================= */}
+
+      <Tabs.Screen
+        name="expenses"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="add-expense"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="expense-details"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="edit-expense"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      {/* =========================
+          INVENTORY ROUTES
+          ========================= */}
+
+      <Tabs.Screen
+        name="inventory"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="inventory-dashboard"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="inventory-history"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="stock-in"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="stock-out"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="stock-adjustment"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="inventory-settings"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      {/* =========================
+          DEVELOPMENT / AUTH ROUTES
+          ========================= */}
+
+      <Tabs.Screen
+        name="login"
+        options={{
+          href: null,
+          tabBarStyle: { display: "none" },
         }}
       />
     </Tabs>

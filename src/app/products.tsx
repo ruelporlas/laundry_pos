@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -16,22 +15,34 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 import type { Product } from "@/models/product";
 import { getProducts } from "@/repositories/productRepository";
 
-const PAGE_PADDING = 16;
-const GRID_GAP = 16;
+const GRID_GAP = spacing.lg;
+const MAX_CONTENT_WIDTH = 1200;
 
 export default function ProductsScreen() {
   const { width } = useWindowDimensions();
 
   const isTablet = width >= 768;
+  const contentWidth = Math.min(width, MAX_CONTENT_WIDTH);
+
+  const availableWidth = contentWidth - PAGE_PADDING * 2;
+
+  const cardWidth = isTablet
+    ? Math.max(0, (availableWidth - GRID_GAP) / 2)
+    : undefined;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
@@ -109,7 +120,12 @@ export default function ProductsScreen() {
             },
           })
         }
-        style={[styles.productCard, isTablet && styles.productCardTablet]}
+        style={[
+          styles.productCard,
+          isTablet && {
+            width: cardWidth,
+          },
+        ]}
       >
         <View style={styles.productIcon}>
           <Ionicons name="cube-outline" size={22} color={colors.primary} />
@@ -142,39 +158,20 @@ export default function ProductsScreen() {
         />
       </AppCard>
     ),
-    [isTablet],
+    [cardWidth, isTablet],
   );
 
   const renderListHeader = () => (
-    <>
-      <View style={styles.hero}>
-        <View style={styles.heroIcon}>
-          <Ionicons name="cube-outline" size={28} color={colors.primary} />
-        </View>
-
-        <Text style={styles.title}>Products</Text>
-
-        <Text style={styles.subtitle}>Manage your laundry products</Text>
+    <View style={styles.headerContent}>
+      <View style={styles.heroWrapper}>
+        <PageHero
+          icon="cube-outline"
+          title="Products"
+          subtitle="Manage your laundry products"
+        />
       </View>
 
-      <View style={[styles.content, isTablet && styles.contentTablet]}>
-        <View style={styles.actionRow}>
-          <View style={styles.actionRowText}>
-            <Text style={styles.sectionTitle}>Product List</Text>
-
-            <Text style={styles.sectionCount}>
-              {filteredProducts.length}{" "}
-              {filteredProducts.length === 1 ? "product" : "products"}
-            </Text>
-          </View>
-
-          <AppButton
-            title="Add Product"
-            icon="add"
-            onPress={() => router.push("/add-product")}
-          />
-        </View>
-
+      <View style={styles.controls}>
         <View style={styles.searchContainer}>
           <Ionicons name="search-outline" size={20} color={colors.textMuted} />
 
@@ -188,26 +185,41 @@ export default function ProductsScreen() {
             clearButtonMode="while-editing"
           />
 
-          {search.length > 0 && (
+          {search.length > 0 ? (
             <View style={styles.resultCount}>
               <Text style={styles.resultCountText}>
                 {filteredProducts.length}
               </Text>
             </View>
-          )}
+          ) : null}
+        </View>
+
+        <View style={[styles.actionRow, !isTablet && styles.actionRowMobile]}>
+          <View style={styles.sectionHeaderWrapper}>
+            <SectionHeader
+              icon="cube-outline"
+              title="Product List"
+              subtitle={`${filteredProducts.length} ${
+                filteredProducts.length === 1 ? "product" : "products"
+              }`}
+            />
+          </View>
+
+          <AppButton
+            title="Add Product"
+            icon="add"
+            onPress={() => router.push("/add-product")}
+            fullWidth={!isTablet}
+          />
         </View>
       </View>
-    </>
+    </View>
   );
 
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-
-          <Text style={styles.loadingText}>Loading products...</Text>
-        </View>
+        <LoadingState message="Loading products..." />
       </View>
     );
   }
@@ -216,17 +228,7 @@ export default function ProductsScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.errorScreen}>
-          <View style={styles.errorIcon}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={32}
-              color={colors.danger}
-            />
-          </View>
-
-          <Text style={styles.errorTitle}>Unable to load products</Text>
-
-          <Text style={styles.errorMessage}>{error}</Text>
+          <ErrorState title="Unable to load products" message={error} />
 
           <Pressable
             onPress={loadProducts}
@@ -254,12 +256,7 @@ export default function ProductsScreen() {
         numColumns={isTablet ? 2 : 1}
         ListHeaderComponent={renderListHeader}
         ListEmptyComponent={
-          <View
-            style={[
-              styles.emptyContainer,
-              isTablet && styles.emptyContainerTablet,
-            ]}
-          >
+          <View style={styles.emptyContainer}>
             <EmptyState
               icon="cube-outline"
               title={search.trim() ? "No products found" : "No products yet"}
@@ -272,7 +269,7 @@ export default function ProductsScreen() {
           </View>
         }
         columnWrapperStyle={isTablet ? styles.columnWrapper : undefined}
-        contentContainerStyle={[styles.list, isTablet && styles.listTablet]}
+        contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -285,7 +282,7 @@ export default function ProductsScreen() {
         }
       />
 
-      {error && products.length > 0 && (
+      {error && products.length > 0 ? (
         <View style={styles.refreshError}>
           <Ionicons name="warning-outline" size={16} color={colors.warning} />
 
@@ -299,7 +296,7 @@ export default function ProductsScreen() {
             <Text style={styles.refreshErrorAction}>Retry</Text>
           </Pressable>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -310,73 +307,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
 
-  hero: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    paddingHorizontal: spacing.lg,
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  title: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  subtitle: {
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
-  content: {
+  list: {
     width: "100%",
-    paddingHorizontal: PAGE_PADDING,
-    paddingTop: spacing.xl,
-  },
-
-  contentTablet: {
-    maxWidth: 1200,
+    maxWidth: MAX_CONTENT_WIDTH,
     alignSelf: "center",
-    paddingHorizontal: spacing["2xl"],
+    paddingHorizontal: PAGE_PADDING,
+    paddingBottom: spacing["4xl"],
   },
 
-  actionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.lg,
+  headerContent: {
+    paddingTop: 0,
   },
 
-  actionRowText: {
-    flex: 1,
-    marginRight: spacing.lg,
+  heroWrapper: {
+    marginHorizontal: -PAGE_PADDING,
   },
 
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
-
-  sectionCount: {
-    marginTop: 2,
-    ...typography.small,
-    color: colors.textMuted,
+  controls: {
+    paddingTop: spacing.xl,
   },
 
   searchContainer: {
@@ -414,31 +362,35 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 
-  list: {
-    paddingBottom: spacing["4xl"],
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.xl,
+    marginBottom: spacing.md,
+    gap: spacing.md,
   },
 
-  listTablet: {
-    paddingHorizontal: spacing["2xl"],
+  actionRowMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
+
+  sectionHeaderWrapper: {
+    flex: 1,
+    minWidth: 0,
   },
 
   columnWrapper: {
+    justifyContent: "space-between",
     gap: GRID_GAP,
-    maxWidth: 1200,
-    alignSelf: "center",
+    marginBottom: GRID_GAP,
   },
 
   productCard: {
     flexDirection: "row",
     alignItems: "center",
     minHeight: 76,
-    marginHorizontal: PAGE_PADDING,
-    marginBottom: spacing.sm,
-  },
-
-  productCardTablet: {
-    flex: 1,
-    marginHorizontal: 0,
     marginBottom: spacing.md,
   },
 
@@ -485,59 +437,14 @@ const styles = StyleSheet.create({
   },
 
   emptyContainer: {
-    paddingHorizontal: PAGE_PADDING,
     paddingTop: spacing.md,
-  },
-
-  emptyContainerTablet: {
-    maxWidth: 1200,
-    alignSelf: "center",
-    width: "100%",
-  },
-
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing["2xl"],
-  },
-
-  loadingText: {
-    marginTop: spacing.md,
-    ...typography.body,
-    color: colors.textMuted,
   },
 
   errorScreen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  errorIcon: {
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.dangerLight,
-  },
-
-  errorTitle: {
-    marginTop: spacing.lg,
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  errorMessage: {
-    maxWidth: 420,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xl,
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
+    paddingHorizontal: PAGE_PADDING,
   },
 
   retryButton: {
@@ -564,7 +471,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    marginHorizontal: spacing.lg,
+    marginHorizontal: PAGE_PADDING,
     marginBottom: spacing.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,

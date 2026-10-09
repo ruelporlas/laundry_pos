@@ -1,8 +1,9 @@
+// F:\4 mobile applications\test_mobile_app\POS\laundry-pos\src\app\add-bundle.tsx
+
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -16,11 +17,15 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { AppInput } from "@/components/ui/AppInput";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 
 import type { BundleItemType, CreateBundleItemInput } from "@/models/bundle";
 import type { Product } from "@/models/product";
@@ -69,7 +74,6 @@ export default function AddBundleScreen() {
         }
 
         setProducts(productResults.filter((product) => product.isActive));
-
         setServices(serviceResults.filter((service) => service.isActive));
       } catch (loadError) {
         console.error("Failed to load bundle catalog:", loadError);
@@ -228,7 +232,6 @@ export default function AddBundleScreen() {
     description?: string,
   ) => {
     const selected = isSelected(itemType, itemId);
-
     const isProduct = itemType === "product";
 
     return (
@@ -285,28 +288,6 @@ export default function AddBundleScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.hero}>
-        <Pressable
-          style={styles.backButton}
-          onPress={() => router.replace("/bundles")}
-          disabled={saving}
-          accessibilityRole="button"
-          accessibilityLabel="Back to bundles"
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
-        </Pressable>
-
-        <View style={styles.heroIcon}>
-          <Ionicons name="gift-outline" size={26} color={colors.primary} />
-        </View>
-
-        <Text style={styles.heroTitle}>Add Bundle</Text>
-
-        <Text style={styles.heroSubtitle}>
-          Create a new product and service package
-        </Text>
-      </View>
-
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -316,370 +297,352 @@ export default function AddBundleScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {error ? (
-            <View style={styles.errorBanner}>
-              <Ionicons
-                name="alert-circle-outline"
-                size={20}
-                color={colors.danger}
-              />
+          <PageHero
+            icon="gift-outline"
+            title="Add Bundle"
+            subtitle="Create a new product and service package"
+            onBack={() => router.replace("/bundles")}
+            disabled={saving}
+          />
 
-              <Text style={styles.errorBannerText}>{error}</Text>
-            </View>
-          ) : null}
-
-          <AppCard style={styles.formCard}>
-            <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderIcon}>
+          <View style={styles.content}>
+            {error ? (
+              <View style={styles.errorBanner}>
                 <Ionicons
-                  name="information-circle-outline"
+                  name="alert-circle-outline"
                   size={20}
-                  color={colors.primary}
+                  color={colors.danger}
                 />
+
+                <Text style={styles.errorBannerText}>{error}</Text>
               </View>
-
-              <View style={styles.cardHeaderText}>
-                <Text style={styles.cardTitle}>Bundle Information</Text>
-
-                <Text style={styles.cardSubtitle}>
-                  Set the bundle name, description, and selling price.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.formFields}>
-              <AppInput
-                label="Bundle Name"
-                value={name}
-                onChangeText={(value) => {
-                  setName(value);
-
-                  if (value.trim()) {
-                    setNameError("");
-                  }
-                }}
-                placeholder="e.g. Full Service"
-                autoCapitalize="words"
-                autoCorrect={false}
-                required
-                error={nameError}
-                editable={!saving}
-              />
-
-              <AppInput
-                label="Description"
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Optional bundle description"
-                autoCapitalize="sentences"
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                style={styles.descriptionInput}
-                editable={!saving}
-              />
-
-              <AppInput
-                label="Bundle Price"
-                value={price}
-                onChangeText={(value) => {
-                  setPrice(value);
-
-                  if (value.trim()) {
-                    setPriceError("");
-                  }
-                }}
-                placeholder="0.00"
-                keyboardType="decimal-pad"
-                required
-                error={priceError}
-                editable={!saving}
-              />
-
-              <Text style={styles.priceHint}>
-                This is the selling price of the bundle. It is independent of
-                the current prices of the products and services inside it.
-              </Text>
-            </View>
-          </AppCard>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderText}>
-                <Text style={styles.sectionTitle}>Included Items</Text>
-
-                <Text style={styles.sectionSubtitle}>
-                  Select the products and services included in this bundle.
-                </Text>
-              </View>
-
-              <View style={styles.itemCountBadge}>
-                <Text style={styles.itemCountText}>{selectedItems.length}</Text>
-              </View>
-            </View>
-
-            {itemsError ? (
-              <Text style={styles.fieldError}>{itemsError}</Text>
             ) : null}
 
-            {selectedItems.length > 0 ? (
-              <View style={styles.selectedItems}>
-                {selectedItems.map((item) => (
-                  <View
-                    key={`${item.itemType}-${item.itemId}`}
-                    style={styles.selectedItem}
-                  >
+            <AppCard padding={spacing.xl}>
+              <SectionHeader
+                icon="information-circle-outline"
+                title="Bundle Information"
+                subtitle="Set the bundle name, description, and selling price."
+              />
+
+              <View style={styles.formFields}>
+                <AppInput
+                  label="Bundle Name"
+                  value={name}
+                  onChangeText={(value) => {
+                    setName(value);
+
+                    if (value.trim()) {
+                      setNameError("");
+                    }
+                  }}
+                  placeholder="e.g. Full Service"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  required
+                  error={nameError}
+                  editable={!saving}
+                />
+
+                <AppInput
+                  label="Description"
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="Optional bundle description"
+                  autoCapitalize="sentences"
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  style={styles.descriptionInput}
+                  editable={!saving}
+                />
+
+                <AppInput
+                  label="Bundle Price"
+                  value={price}
+                  onChangeText={(value) => {
+                    setPrice(value);
+
+                    if (value.trim()) {
+                      setPriceError("");
+                    }
+                  }}
+                  placeholder="0.00"
+                  keyboardType="decimal-pad"
+                  required
+                  error={priceError}
+                  editable={!saving}
+                />
+
+                <Text style={styles.priceHint}>
+                  This is the selling price of the bundle. It is independent of
+                  the current prices of the products and services inside it.
+                </Text>
+              </View>
+            </AppCard>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <SectionHeader
+                  icon="layers-outline"
+                  title="Included Items"
+                  subtitle="Select the products and services included in this bundle."
+                />
+
+                <View style={styles.itemCountBadge}>
+                  <Text style={styles.itemCountText}>
+                    {selectedItems.length}
+                  </Text>
+                </View>
+              </View>
+
+              {itemsError ? (
+                <Text style={styles.fieldError}>{itemsError}</Text>
+              ) : null}
+
+              {selectedItems.length > 0 ? (
+                <View style={styles.selectedItems}>
+                  {selectedItems.map((item) => (
                     <View
-                      style={[
-                        styles.itemIcon,
-                        item.itemType === "product"
-                          ? styles.productIcon
-                          : styles.serviceIcon,
-                      ]}
+                      key={`${item.itemType}-${item.itemId}`}
+                      style={styles.selectedItem}
                     >
-                      <Ionicons
-                        name={
+                      <View
+                        style={[
+                          styles.itemIcon,
                           item.itemType === "product"
-                            ? "cube-outline"
-                            : "construct-outline"
-                        }
-                        size={20}
-                        color={
-                          item.itemType === "product"
-                            ? colors.primary
-                            : colors.accent
-                        }
-                      />
-                    </View>
-
-                    <View style={styles.itemInfo}>
-                      <Text style={styles.itemName} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-
-                      <Text style={styles.itemType}>
-                        {item.itemType === "product" ? "Product" : "Service"} ·
-                        ₱{item.unitPrice.toFixed(2)}
-                      </Text>
-
-                      <View style={styles.quantityControls}>
-                        <Pressable
-                          style={styles.quantityButton}
-                          onPress={() =>
-                            changeQuantity(item.itemType, item.itemId, -1)
+                            ? styles.productIcon
+                            : styles.serviceIcon,
+                        ]}
+                      >
+                        <Ionicons
+                          name={
+                            item.itemType === "product"
+                              ? "cube-outline"
+                              : "construct-outline"
                           }
-                          disabled={saving}
-                        >
-                          <Ionicons
-                            name="remove"
-                            size={16}
-                            color={colors.text}
-                          />
-                        </Pressable>
-
-                        <Text style={styles.quantityText}>{item.quantity}</Text>
-
-                        <Pressable
-                          style={styles.quantityButton}
-                          onPress={() =>
-                            changeQuantity(item.itemType, item.itemId, 1)
+                          size={20}
+                          color={
+                            item.itemType === "product"
+                              ? colors.primary
+                              : colors.accent
                           }
-                          disabled={saving}
-                        >
-                          <Ionicons name="add" size={16} color={colors.text} />
-                        </Pressable>
+                        />
                       </View>
+
+                      <View style={styles.itemInfo}>
+                        <Text style={styles.itemName} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+
+                        <Text style={styles.itemType}>
+                          {item.itemType === "product" ? "Product" : "Service"}{" "}
+                          · ₱{item.unitPrice.toFixed(2)}
+                        </Text>
+
+                        <View style={styles.quantityControls}>
+                          <Pressable
+                            style={styles.quantityButton}
+                            onPress={() =>
+                              changeQuantity(item.itemType, item.itemId, -1)
+                            }
+                            disabled={saving}
+                          >
+                            <Ionicons
+                              name="remove"
+                              size={16}
+                              color={colors.text}
+                            />
+                          </Pressable>
+
+                          <Text style={styles.quantityText}>
+                            {item.quantity}
+                          </Text>
+
+                          <Pressable
+                            style={styles.quantityButton}
+                            onPress={() =>
+                              changeQuantity(item.itemType, item.itemId, 1)
+                            }
+                            disabled={saving}
+                          >
+                            <Ionicons
+                              name="add"
+                              size={16}
+                              color={colors.text}
+                            />
+                          </Pressable>
+                        </View>
+                      </View>
+
+                      <Pressable
+                        style={styles.removeButton}
+                        onPress={() =>
+                          Alert.alert(
+                            "Remove Item",
+                            `Remove "${item.name}" from this bundle?`,
+                            [
+                              {
+                                text: "Cancel",
+                                style: "cancel",
+                              },
+                              {
+                                text: "Remove",
+                                style: "destructive",
+                                onPress: () =>
+                                  removeItem(item.itemType, item.itemId),
+                              },
+                            ],
+                          )
+                        }
+                        disabled={saving}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${item.name}`}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={19}
+                          color={colors.danger}
+                        />
+                      </Pressable>
                     </View>
-
-                    <Pressable
-                      style={styles.removeButton}
-                      onPress={() =>
-                        Alert.alert(
-                          "Remove Item",
-                          `Remove "${item.name}" from this bundle?`,
-                          [
-                            {
-                              text: "Cancel",
-                              style: "cancel",
-                            },
-                            {
-                              text: "Remove",
-                              style: "destructive",
-                              onPress: () =>
-                                removeItem(item.itemType, item.itemId),
-                            },
-                          ],
-                        )
-                      }
-                      disabled={saving}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Remove ${item.name}`}
-                    >
-                      <Ionicons
-                        name="trash-outline"
-                        size={19}
-                        color={colors.danger}
-                      />
-                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.noItems}>
+                  <View style={styles.noItemsIcon}>
+                    <Ionicons
+                      name="layers-outline"
+                      size={26}
+                      color={colors.textMuted}
+                    />
                   </View>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.noItems}>
-                <View style={styles.noItemsIcon}>
-                  <Ionicons
-                    name="layers-outline"
-                    size={26}
-                    color={colors.textMuted}
-                  />
+
+                  <Text style={styles.noItemsTitle}>No items added</Text>
+
+                  <Text style={styles.noItemsMessage}>
+                    Select at least one product or service below.
+                  </Text>
                 </View>
-
-                <Text style={styles.noItemsTitle}>No items added</Text>
-
-                <Text style={styles.noItemsMessage}>
-                  Select at least one product or service below.
-                </Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderText}>
-                <Text style={styles.sectionTitle}>Products</Text>
-
-                <Text style={styles.sectionSubtitle}>
-                  Active products available to add
-                </Text>
-              </View>
+              )}
             </View>
 
-            {catalogLoading ? (
-              <View style={styles.catalogLoading}>
-                <ActivityIndicator size="small" color={colors.primary} />
+            <View style={styles.section}>
+              <SectionHeader
+                icon="cube-outline"
+                title="Products"
+                subtitle="Active products available to add"
+              />
 
-                <Text style={styles.catalogLoadingText}>
-                  Loading products...
-                </Text>
-              </View>
-            ) : products.length === 0 ? (
-              <View style={styles.catalogEmpty}>
-                <View style={[styles.emptyIcon, styles.productIcon]}>
-                  <Ionicons
-                    name="cube-outline"
-                    size={24}
-                    color={colors.primary}
-                  />
+              {catalogLoading ? (
+                <LoadingState message="Loading products..." />
+              ) : products.length === 0 ? (
+                <View style={styles.catalogEmpty}>
+                  <View style={[styles.emptyIcon, styles.productIcon]}>
+                    <Ionicons
+                      name="cube-outline"
+                      size={24}
+                      color={colors.primary}
+                    />
+                  </View>
+
+                  <Text style={styles.catalogEmptyTitle}>
+                    No Active Products
+                  </Text>
+
+                  <Text style={styles.catalogEmptyText}>
+                    Create an active product before adding products to a bundle.
+                  </Text>
                 </View>
-
-                <Text style={styles.catalogEmptyTitle}>No Active Products</Text>
-
-                <Text style={styles.catalogEmptyText}>
-                  Create an active product before adding products to a bundle.
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.catalogList}>
-                {products.map((product) =>
-                  renderCatalogItem(
-                    "product",
-                    product.id,
-                    product.name,
-                    product.price,
-                    product.description,
-                  ),
-                )}
-              </View>
-            )}
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderText}>
-                <Text style={styles.sectionTitle}>Services</Text>
-
-                <Text style={styles.sectionSubtitle}>
-                  Active services available to add
-                </Text>
-              </View>
+              ) : (
+                <View style={styles.catalogList}>
+                  {products.map((product) =>
+                    renderCatalogItem(
+                      "product",
+                      product.id,
+                      product.name,
+                      product.price,
+                      product.description,
+                    ),
+                  )}
+                </View>
+              )}
             </View>
 
-            {catalogLoading ? (
-              <View style={styles.catalogLoading}>
-                <ActivityIndicator size="small" color={colors.primary} />
+            <View style={styles.section}>
+              <SectionHeader
+                icon="construct-outline"
+                title="Services"
+                subtitle="Active services available to add"
+              />
 
-                <Text style={styles.catalogLoadingText}>
-                  Loading services...
-                </Text>
-              </View>
-            ) : services.length === 0 ? (
-              <View style={styles.catalogEmpty}>
-                <View style={[styles.emptyIcon, styles.serviceIcon]}>
-                  <Ionicons
-                    name="construct-outline"
-                    size={24}
-                    color={colors.accent}
-                  />
+              {catalogLoading ? (
+                <LoadingState message="Loading services..." />
+              ) : services.length === 0 ? (
+                <View style={styles.catalogEmpty}>
+                  <View style={[styles.emptyIcon, styles.serviceIcon]}>
+                    <Ionicons
+                      name="construct-outline"
+                      size={24}
+                      color={colors.accent}
+                    />
+                  </View>
+
+                  <Text style={styles.catalogEmptyTitle}>
+                    No Active Services
+                  </Text>
+
+                  <Text style={styles.catalogEmptyText}>
+                    Create an active service before adding services to a bundle.
+                  </Text>
                 </View>
+              ) : (
+                <View style={styles.catalogList}>
+                  {services.map((service) =>
+                    renderCatalogItem(
+                      "service",
+                      service.id,
+                      service.name,
+                      service.price,
+                      service.description,
+                    ),
+                  )}
+                </View>
+              )}
+            </View>
 
-                <Text style={styles.catalogEmptyTitle}>No Active Services</Text>
+            <View style={styles.priceNote}>
+              <Ionicons
+                name="information-circle-outline"
+                size={18}
+                color={colors.textMuted}
+              />
 
-                <Text style={styles.catalogEmptyText}>
-                  Create an active service before adding services to a bundle.
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.catalogList}>
-                {services.map((service) =>
-                  renderCatalogItem(
-                    "service",
-                    service.id,
-                    service.name,
-                    service.price,
-                    service.description,
-                  ),
-                )}
-              </View>
-            )}
-          </View>
+              <Text style={styles.priceNoteText}>
+                The bundle price is independent from the individual product and
+                service prices.
+              </Text>
+            </View>
 
-          <View style={styles.priceNote}>
-            <Ionicons
-              name="information-circle-outline"
-              size={18}
-              color={colors.textMuted}
-            />
+            <View style={styles.actions}>
+              <AppButton
+                title="Cancel"
+                variant="secondary"
+                icon="close-outline"
+                onPress={() => router.replace("/bundles")}
+                disabled={saving}
+                fullWidth
+              />
 
-            <Text style={styles.priceNoteText}>
-              The bundle price is independent from the individual product and
-              service prices.
-            </Text>
-          </View>
-
-          <View style={styles.actions}>
-            <AppButton
-              title="Cancel"
-              variant="secondary"
-              icon="close-outline"
-              onPress={() => {
-                if (saving) {
-                  return;
-                }
-
-                router.replace("/bundles");
-              }}
-              disabled={saving}
-              fullWidth
-            />
-
-            <AppButton
-              title="Save Bundle"
-              icon="checkmark-circle-outline"
-              onPress={handleSave}
-              loading={saving}
-              disabled={saving}
-              fullWidth
-            />
+              <AppButton
+                title="Save Bundle"
+                icon="checkmark-circle-outline"
+                onPress={handleSave}
+                loading={saving}
+                disabled={saving}
+                fullWidth
+              />
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -697,56 +660,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  hero: {
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  backButton: {
-    position: "absolute",
-    left: spacing.lg,
-    top: spacing.lg,
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-  },
-
-  heroIcon: {
-    width: 58,
-    height: 58,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.lg,
-    backgroundColor: colors.surface,
-  },
-
-  heroTitle: {
-    marginTop: spacing.md,
-    ...typography.h1,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  heroSubtitle: {
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
   contentContainer: {
+    paddingBottom: spacing["5xl"],
+  },
+
+  content: {
     width: "100%",
     maxWidth: 720,
     alignSelf: "center",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing["2xl"],
-    paddingBottom: spacing["5xl"],
+    paddingHorizontal: PAGE_PADDING,
+    paddingTop: spacing.xl,
   },
 
   errorBanner: {
@@ -765,43 +688,9 @@ const styles = StyleSheet.create({
     color: colors.danger,
   },
 
-  formCard: {
-    padding: spacing.lg,
-  },
-
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.xl,
-  },
-
-  cardHeaderIcon: {
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.md,
-    backgroundColor: colors.primaryLight,
-  },
-
-  cardHeaderText: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-
-  cardTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
-
-  cardSubtitle: {
-    marginTop: 2,
-    ...typography.small,
-    color: colors.textMuted,
-  },
-
   formFields: {
     gap: spacing.lg,
+    marginTop: spacing.xl,
   },
 
   descriptionInput: {
@@ -819,26 +708,10 @@ const styles = StyleSheet.create({
     marginTop: spacing["2xl"],
   },
 
-  sectionHeader: {
+  sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    justifyContent: "space-between",
     marginBottom: spacing.md,
-  },
-
-  sectionHeaderText: {
-    flex: 1,
-  },
-
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
-
-  sectionSubtitle: {
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textMuted,
   },
 
   itemCountBadge: {
@@ -981,6 +854,7 @@ const styles = StyleSheet.create({
 
   catalogList: {
     gap: spacing.sm,
+    marginTop: spacing.md,
   },
 
   catalogItem: {
@@ -1049,21 +923,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.successLight,
   },
 
-  catalogLoading: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing["2xl"],
-  },
-
-  catalogLoadingText: {
-    marginLeft: spacing.sm,
-    ...typography.small,
-    color: colors.textMuted,
-  },
-
   catalogEmpty: {
     alignItems: "center",
+    marginTop: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing["2xl"],
     borderWidth: 1,

@@ -1,8 +1,9 @@
+import { useAuth } from "@/context/AuthContext";
+import { doAction } from "@/hooks/actions";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
@@ -18,7 +19,10 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { AppInput } from "@/components/ui/AppInput";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
 import { theme } from "@/constants/theme";
 import { typography } from "@/constants/typography";
@@ -41,6 +45,10 @@ import {
 import { getProducts } from "@/repositories/productRepository";
 import { getServices } from "@/repositories/serviceRepository";
 
+function formatCurrency(amount: number): string {
+  return `₱${amount.toFixed(2)}`;
+}
+
 type CatalogType = "service" | "product" | "bundle";
 
 type PaymentTiming = "pay_now" | "pay_later";
@@ -53,8 +61,7 @@ type CatalogItem = {
   type: CatalogType;
 };
 
-const PAGE_PADDING = 16;
-const GRID_GAP = 16;
+const GRID_GAP = spacing.lg;
 const MAX_CONTENT_WIDTH = 1200;
 const ADD_FEEDBACK_DURATION = 900;
 
@@ -62,6 +69,7 @@ export default function NewJobOrderScreen() {
   const router = useRouter();
 
   const { width } = useWindowDimensions();
+  const { user } = useAuth();
 
   const isTablet = width >= 768;
 
@@ -75,6 +83,8 @@ export default function NewJobOrderScreen() {
   );
 
   const [items, setItems] = useState<JobOrderDraftItem[]>([]);
+
+  const [removedItems, setRemovedItems] = useState<JobOrderDraftItem[]>([]);
 
   const [catalogType, setCatalogType] = useState<CatalogType>("service");
 
@@ -127,11 +137,8 @@ export default function NewJobOrderScreen() {
         ]);
 
       setCustomers(customerData.filter((customer) => customer.isActive));
-
       setProducts(productData.filter((product) => product.isActive));
-
       setServices(serviceData.filter((service) => service.isActive));
-
       setBundles(bundleData.filter((bundle) => bundle.isActive));
     } catch (err) {
       console.error("Failed to load Job Order data:", err);
@@ -223,9 +230,7 @@ export default function NewJobOrderScreen() {
   );
 
   const cashReceivedAmount = parseAmount(cashReceived);
-
   const gcashPaidAmount = parseAmount(gcashAmount);
-
   const otherPaidAmount = parseAmount(otherAmount);
 
   const amountPaid =
@@ -251,13 +256,8 @@ export default function NewJobOrderScreen() {
         ? "partially_paid"
         : "unpaid";
 
-  function formatCurrency(amount: number): string {
-    return `₱${amount.toFixed(2)}`;
-  }
-
   function parseAmount(value: string): number {
     const cleaned = value.replace(/[^0-9.]/g, "");
-
     const parsed = Number(cleaned);
 
     return Number.isFinite(parsed) ? parsed : 0;
@@ -330,6 +330,19 @@ export default function NewJobOrderScreen() {
   }
 
   function removeItem(itemType: CatalogType, itemId: number) {
+    const removedItem = items.find(
+      (item) => item.itemType === itemType && item.itemId === itemId,
+    );
+
+    if (!removedItem) {
+      return;
+    }
+
+    setRemovedItems((currentRemovedItems) => [
+      ...currentRemovedItems,
+      removedItem,
+    ]);
+
     setItems((currentItems) =>
       currentItems.filter(
         (item) => !(item.itemType === itemType && item.itemId === itemId),
@@ -362,6 +375,7 @@ export default function NewJobOrderScreen() {
           onPress: () => {
             setSelectedCustomer(null);
             setItems([]);
+            setRemovedItems([]);
             setDiscountType(null);
             setDiscountValue(0);
             setShowDiscount(false);
@@ -384,6 +398,7 @@ export default function NewJobOrderScreen() {
   function resetOrderForm() {
     setSelectedCustomer(null);
     setItems([]);
+    setRemovedItems([]);
     setDiscountType(null);
     setDiscountValue(0);
     setShowDiscount(false);
@@ -391,7 +406,6 @@ export default function NewJobOrderScreen() {
     setCustomerSearch("");
     setShowCustomerPicker(false);
     setAddedItemKey(null);
-
     setPaymentTiming("pay_later");
     setPaymentMethod("cash");
     setCashReceived("");
@@ -399,9 +413,9 @@ export default function NewJobOrderScreen() {
     setGcashReference("");
     setOtherAmount("");
     setOtherPaymentNote("");
-
     setError("");
   }
+
   function handlePaymentTiming(timing: PaymentTiming) {
     setPaymentTiming(timing);
 
@@ -440,28 +454,21 @@ export default function NewJobOrderScreen() {
 
   function handleDiscountValue(value: string) {
     const cleaned = value.replace(/[^0-9.]/g, "");
-
     const numericValue = Number(cleaned);
 
     setDiscountValue(Number.isFinite(numericValue) ? numericValue : 0);
   }
 
   function handleCashReceived(value: string) {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-
-    setCashReceived(cleaned);
+    setCashReceived(value.replace(/[^0-9.]/g, ""));
   }
 
   function handleGcashAmount(value: string) {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-
-    setGcashAmount(cleaned);
+    setGcashAmount(value.replace(/[^0-9.]/g, ""));
   }
 
   function handleOtherAmount(value: string) {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-
-    setOtherAmount(cleaned);
+    setOtherAmount(value.replace(/[^0-9.]/g, ""));
   }
 
   function handleCreateJobOrder() {
@@ -611,7 +618,26 @@ export default function NewJobOrderScreen() {
                   paymentNote: otherPaymentNote.trim(),
                 };
 
-      const result = await createJobOrder(draft, paymentInput, null);
+      const result = await createJobOrder(
+        draft,
+        paymentInput,
+        user?.id ?? null,
+      );
+
+      if (removedItems.length > 0) {
+        try {
+          await doAction("job_order.item_removed", {
+            jobOrderId: result.jobOrder.id,
+            jobOrderNumber: result.jobOrder.jobOrderNumber,
+            removedItems,
+          });
+        } catch (auditError) {
+          console.error(
+            "Job Order was created, but the item removal audit could not be recorded:",
+            auditError,
+          );
+        }
+      }
 
       resetOrderForm();
 
@@ -660,7 +686,6 @@ export default function NewJobOrderScreen() {
 
   function renderCatalogItem({ item }: { item: CatalogItem }) {
     const itemKey = getItemKey(item);
-
     const isAdded = addedItemKey === itemKey;
 
     return (
@@ -881,9 +906,7 @@ export default function NewJobOrderScreen() {
   if (loading) {
     return (
       <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color={colors.primary} />
-
-        <Text style={styles.loadingText}>Loading Job Order...</Text>
+        <LoadingState message="Loading Job Order..." />
       </View>
     );
   }
@@ -893,41 +916,12 @@ export default function NewJobOrderScreen() {
       style={styles.screen}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.hero}>
-        <View
-          style={[
-            styles.heroInner,
-            {
-              maxWidth: MAX_CONTENT_WIDTH,
-            },
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back to POS"
-            onPress={() => router.replace("/")}
-            style={styles.heroBack}
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
-          </Pressable>
-
-          <View style={styles.heroContent}>
-            <View style={styles.heroIcon}>
-              <Ionicons
-                name="receipt-outline"
-                size={28}
-                color={colors.primary}
-              />
-            </View>
-
-            <Text style={styles.heroTitle}>New Job Order</Text>
-
-            <Text style={styles.heroSubtitle}>
-              Create a new laundry transaction
-            </Text>
-          </View>
-        </View>
-      </View>
+      <PageHero
+        icon="receipt-outline"
+        title="New Job Order"
+        subtitle="Create a new laundry transaction"
+        onBack={() => router.replace("/")}
+      />
 
       {error ? (
         <View
@@ -1674,7 +1668,7 @@ export default function NewJobOrderScreen() {
                               onChangeText={setOtherPaymentNote}
                               placeholder="e.g. Maya, bank transfer, credit card"
                               autoCapitalize="sentences"
-                              autoCorrect={true}
+                              autoCorrect
                             />
 
                             <View style={styles.paymentCalculation}>
@@ -1706,7 +1700,7 @@ export default function NewJobOrderScreen() {
                     ) : null}
 
                     <View style={styles.paymentStatusRow}>
-                      <View>
+                      <View style={styles.paymentStatusInfo}>
                         <Text style={styles.paymentStatusLabel}>
                           Payment Status
                         </Text>
@@ -1720,7 +1714,44 @@ export default function NewJobOrderScreen() {
                         </Text>
                       </View>
 
-                      <PaymentStatusBadge status={paymentStatus} />
+                      <View
+                        style={[
+                          styles.paymentStatusBadge,
+                          paymentStatus === "paid"
+                            ? styles.paymentStatusPaid
+                            : paymentStatus === "partially_paid"
+                              ? styles.paymentStatusPartial
+                              : styles.paymentStatusUnpaid,
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.paymentStatusDot,
+                            paymentStatus === "paid"
+                              ? styles.paymentStatusDotPaid
+                              : paymentStatus === "partially_paid"
+                                ? styles.paymentStatusDotPartial
+                                : styles.paymentStatusDotUnpaid,
+                          ]}
+                        />
+
+                        <Text
+                          style={[
+                            styles.paymentStatusBadgeText,
+                            paymentStatus === "paid"
+                              ? styles.paymentStatusBadgeTextPaid
+                              : paymentStatus === "partially_paid"
+                                ? styles.paymentStatusBadgeTextPartial
+                                : styles.paymentStatusBadgeTextUnpaid,
+                          ]}
+                        >
+                          {paymentStatus === "paid"
+                            ? "PAID"
+                            : paymentStatus === "partially_paid"
+                              ? "PARTIALLY PAID"
+                              : "UNPAID"}
+                        </Text>
+                      </View>
                     </View>
 
                     {paymentStatus !== "paid" ? (
@@ -1765,112 +1796,10 @@ export default function NewJobOrderScreen() {
   );
 }
 
-function PaymentStatusBadge({
-  status,
-}: {
-  status: "paid" | "partially_paid" | "unpaid";
-}) {
-  const isPaid = status === "paid";
-
-  const isPartial = status === "partially_paid";
-
-  return (
-    <View
-      style={[
-        styles.paymentStatusBadge,
-        isPaid
-          ? styles.paymentStatusPaid
-          : isPartial
-            ? styles.paymentStatusPartial
-            : styles.paymentStatusUnpaid,
-      ]}
-    >
-      <View
-        style={[
-          styles.paymentStatusDot,
-          isPaid
-            ? styles.paymentStatusDotPaid
-            : isPartial
-              ? styles.paymentStatusDotPartial
-              : styles.paymentStatusDotUnpaid,
-        ]}
-      />
-
-      <Text
-        style={[
-          styles.paymentStatusBadgeText,
-          isPaid
-            ? styles.paymentStatusBadgeTextPaid
-            : isPartial
-              ? styles.paymentStatusBadgeTextPartial
-              : styles.paymentStatusBadgeTextUnpaid,
-        ]}
-      >
-        {isPaid ? "PAID" : isPartial ? "PARTIALLY PAID" : "UNPAID"}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-
-  hero: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: PAGE_PADDING,
-    paddingTop: 54,
-    paddingBottom: 20,
-  },
-
-  heroInner: {
-    width: "100%",
-    alignSelf: "center",
-    position: "relative",
-    alignItems: "center",
-  },
-
-  heroBack: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.surface,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 2,
-  },
-
-  heroContent: {
-    alignItems: "center",
-    width: "100%",
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-  },
-
-  heroTitle: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  heroSubtitle: {
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
   },
 
   errorBanner: {
@@ -1916,7 +1845,7 @@ const styles = StyleSheet.create({
   stepNumber: {
     width: 34,
     height: 34,
-    borderRadius: 17,
+    borderRadius: theme.radius.full,
     backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
@@ -1973,7 +1902,7 @@ const styles = StyleSheet.create({
   customerCardIcon: {
     width: 44,
     height: 44,
-    borderRadius: 14,
+    borderRadius: theme.radius.md,
     backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
@@ -2032,7 +1961,7 @@ const styles = StyleSheet.create({
   waitingIcon: {
     width: 58,
     height: 58,
-    borderRadius: 29,
+    borderRadius: theme.radius.full,
     backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
@@ -2119,7 +2048,7 @@ const styles = StyleSheet.create({
   catalogIcon: {
     width: 42,
     height: 42,
-    borderRadius: 14,
+    borderRadius: theme.radius.md,
     backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
@@ -2165,7 +2094,7 @@ const styles = StyleSheet.create({
   addIcon: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: theme.radius.full,
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
@@ -2182,7 +2111,7 @@ const styles = StyleSheet.create({
   catalogEmptyIcon: {
     width: 58,
     height: 58,
-    borderRadius: 29,
+    borderRadius: theme.radius.full,
     backgroundColor: colors.surfaceSoft,
     justifyContent: "center",
     alignItems: "center",
@@ -2251,7 +2180,7 @@ const styles = StyleSheet.create({
   quantityButton: {
     width: 30,
     height: 30,
-    borderRadius: 15,
+    borderRadius: theme.radius.full,
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.border,
@@ -2269,7 +2198,7 @@ const styles = StyleSheet.create({
   removeButton: {
     width: 30,
     height: 30,
-    borderRadius: 15,
+    borderRadius: theme.radius.full,
     backgroundColor: colors.dangerLight,
     justifyContent: "center",
     alignItems: "center",
@@ -2280,7 +2209,7 @@ const styles = StyleSheet.create({
     minWidth: 30,
     height: 30,
     paddingHorizontal: spacing.sm,
-    borderRadius: 15,
+    borderRadius: theme.radius.full,
     backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
@@ -2426,7 +2355,7 @@ const styles = StyleSheet.create({
   paymentHeaderIcon: {
     width: 42,
     height: 42,
-    borderRadius: 14,
+    borderRadius: theme.radius.md,
     backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
@@ -2475,7 +2404,7 @@ const styles = StyleSheet.create({
   paymentTimingIcon: {
     width: 40,
     height: 40,
-    borderRadius: 13,
+    borderRadius: theme.radius.md,
     backgroundColor: colors.surfaceSoft,
     justifyContent: "center",
     alignItems: "center",
@@ -2605,6 +2534,10 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
 
+  paymentStatusInfo: {
+    flex: 1,
+  },
+
   paymentStatusLabel: {
     ...typography.bodyMedium,
     color: colors.text,
@@ -2643,7 +2576,7 @@ const styles = StyleSheet.create({
   paymentStatusDot: {
     width: 7,
     height: 7,
-    borderRadius: 4,
+    borderRadius: theme.radius.full,
   },
 
   paymentStatusDotPaid: {
@@ -2755,7 +2688,7 @@ const styles = StyleSheet.create({
   closeButton: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: theme.radius.full,
     backgroundColor: colors.surfaceSoft,
     justifyContent: "center",
     alignItems: "center",
@@ -2779,7 +2712,7 @@ const styles = StyleSheet.create({
   customerAvatar: {
     width: 42,
     height: 42,
-    borderRadius: 21,
+    borderRadius: theme.radius.full,
     backgroundColor: colors.primaryLight,
     justifyContent: "center",
     alignItems: "center",
@@ -2823,11 +2756,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
-  },
-
-  loadingText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.md,
   },
 });

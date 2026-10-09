@@ -1,8 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -14,13 +13,19 @@ import {
 
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
+import type { InventoryItemWithProduct } from "@/models/inventory";
 import type { Product } from "@/models/product";
+import { getOrCreateInventoryForProduct } from "@/repositories/inventoryRepository";
 import {
   getProductById,
   setProductActive,
@@ -28,84 +33,109 @@ import {
 
 export default function ProductDetailsScreen() {
   const { width } = useWindowDimensions();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams<{ id?: string }>();
 
   const isTablet = width >= 768;
 
   const [product, setProduct] = useState<Product | null>(null);
+  const [inventory, setInventory] = useState<InventoryItemWithProduct | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadProduct() {
-      if (!id) {
-        setError("Product ID is missing.");
-        setLoading(false);
-        return;
-      }
+  const handleBackToProducts = useCallback(() => {
+    router.replace("/products");
+  }, []);
 
-      const productId = Number(id);
-
-      if (!Number.isInteger(productId) || productId <= 0) {
-        setError("Invalid product ID.");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setError("");
-
-        const result = await getProductById(productId);
-
-        if (!result) {
-          setError("Product could not be found.");
-          return;
-        }
-
-        setProduct(result);
-      } catch (error) {
-        console.error("Failed to load product:", error);
-
-        setError(
-          error instanceof Error ? error.message : "Unable to load product.",
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadProduct();
-  }, [id]);
-
-  const handleToggleStatus = () => {
-    if (!product || updatingStatus) {
+  const loadProduct = useCallback(async () => {
+    if (!id) {
+      setError("Product ID is missing.");
+      setLoading(false);
       return;
     }
 
-    const willActivate = !product.isActive;
+    const productId = Number(id);
+
+    if (!Number.isInteger(productId) || productId <= 0) {
+      setError("Invalid product ID.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const result = await getProductById(productId);
+
+      if (!result) {
+        setError("Product not found.");
+        setProduct(null);
+        setInventory(null);
+        return;
+      }
+
+      setProduct(result);
+
+      const inventoryResult = await getOrCreateInventoryForProduct(result.id);
+
+      const inventoryWithProduct: InventoryItemWithProduct = {
+        ...inventoryResult,
+        productName: result.name,
+        productDescription: result.description,
+        productPrice: result.price,
+        productIsActive: result.isActive,
+      };
+
+      setInventory(inventoryWithProduct);
+    } catch (error) {
+      console.error("Failed to load product:", error);
+
+      setError(
+        error instanceof Error ? error.message : "Unable to load product.",
+      );
+      setInventory(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProduct();
+    }, [loadProduct]),
+  );
+
+  const handleToggleStatus = useCallback(async () => {
+    if (!product) {
+      return;
+    }
+
+    const nextStatus = !product.isActive;
 
     Alert.alert(
-      willActivate ? "Activate Product?" : "Deactivate Product?",
-      willActivate
-        ? "This product will become available for new transactions again."
-        : "This product will remain in your records but will no longer be available for new transactions.",
+      nextStatus ? "Activate Product" : "Deactivate Product",
+      nextStatus
+        ? `Are you sure you want to activate "${product.name}"?`
+        : `Are you sure you want to deactivate "${product.name}"?`,
       [
         {
           text: "Cancel",
           style: "cancel",
         },
         {
-          text: willActivate ? "Activate" : "Deactivate",
-          style: willActivate ? "default" : "destructive",
+          text: nextStatus ? "Activate" : "Deactivate",
+          style: nextStatus ? "default" : "destructive",
           onPress: async () => {
             try {
               setUpdatingStatus(true);
-              setError("");
+              setError(null);
 
               const updatedProduct = await setProductActive(
                 product.id,
-                willActivate,
+                nextStatus,
               );
 
               setProduct(updatedProduct);
@@ -124,198 +154,328 @@ export default function ProductDetailsScreen() {
         },
       ],
     );
+  }, [product]);
+
+  const formatQuantity = (quantity: number) => {
+    if (Number.isInteger(quantity)) {
+      return quantity.toString();
+    }
+
+    return quantity.toFixed(2).replace(/\.?0+$/, "");
+  };
+
+  const getInventoryStatus = () => {
+    if (!inventory || !inventory.isTrackingEnabled) {
+      return {
+        label: "Not Tracked",
+        variant: "neutral" as const,
+      };
+    }
+
+    if (inventory.currentQuantity <= 0) {
+      return {
+        label: "Out of Stock",
+        variant: "danger" as const,
+      };
+    }
+
+    if (
+      inventory.lowStockLevel > 0 &&
+      inventory.currentQuantity <= inventory.lowStockLevel
+    ) {
+      return {
+        label: "Low Stock",
+        variant: "warning" as const,
+      };
+    }
+
+    return {
+      label: "In Stock",
+      variant: "success" as const,
+    };
   };
 
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingHero}>
-          <Pressable
-            onPress={() => router.replace("/products")}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
-          </Pressable>
+        <PageHero
+          icon="cube-outline"
+          title="Product Details"
+          subtitle="Loading product"
+        />
 
-          <View style={styles.loadingIcon}>
-            <Ionicons name="cube-outline" size={28} color={colors.primary} />
-          </View>
-
-          <Text style={styles.loadingTitle}>Product Details</Text>
-        </View>
-
-        <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={colors.primary} />
-
-          <Text style={styles.loadingText}>Loading product...</Text>
-        </View>
+        <LoadingState message="Loading product..." />
       </View>
     );
   }
 
-  if (error && !product) {
+  if (!product) {
     return (
       <View style={styles.container}>
-        <View style={styles.hero}>
-          <Pressable
-            onPress={() => router.replace("/products")}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
-          </Pressable>
+        <PageHero
+          icon="cube-outline"
+          title="Product Details"
+          subtitle="Product unavailable"
+        />
 
-          <View style={styles.heroIcon}>
-            <Ionicons name="cube-outline" size={28} color={colors.primary} />
-          </View>
-
-          <Text style={styles.title}>Product Details</Text>
-
-          <Text style={styles.subtitle}>Product information</Text>
-        </View>
-
-        <View style={styles.centerState}>
-          <View style={styles.errorIcon}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={32}
-              color={colors.danger}
-            />
-          </View>
-
-          <Text style={styles.errorTitle}>Product not found</Text>
-
-          <Text style={styles.errorMessage}>{error}</Text>
+        <View style={styles.errorScreen}>
+          <ErrorState
+            title="Unable to load product"
+            message={error || "Product not found."}
+          />
 
           <AppButton
             title="Back to Products"
-            icon="arrow-back-outline"
-            onPress={() => router.replace("/products")}
+            icon="arrow-back"
+            onPress={handleBackToProducts}
           />
         </View>
       </View>
     );
   }
 
-  if (!product) {
-    return null;
-  }
+  const inventoryStatus = getInventoryStatus();
 
   return (
     <View style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
-          styles.scrollContent,
-          isTablet && styles.scrollContentTablet,
+          styles.content,
+          isTablet && styles.contentTablet,
         ]}
       >
-        <View style={styles.hero}>
-          <Pressable
-            onPress={() => router.replace("/products")}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
-          </Pressable>
+        <PageHero
+          icon="cube-outline"
+          title="Product Details"
+          subtitle={product.name}
+        />
 
-          <View style={styles.heroIcon}>
-            <Ionicons name="cube-outline" size={30} color={colors.primary} />
+        {error ? (
+          <View style={styles.errorBanner}>
+            <Ionicons name="warning-outline" size={18} color={colors.danger} />
+
+            <Text style={styles.errorBannerText}>{error}</Text>
+          </View>
+        ) : null}
+
+        <AppCard style={styles.profileCard}>
+          <View style={styles.productIcon}>
+            <Ionicons name="cube-outline" size={34} color={colors.primary} />
           </View>
 
-          <Text style={styles.title}>Product Details</Text>
-
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {product.name}
-          </Text>
-        </View>
-
-        <View style={[styles.content, isTablet && styles.contentTablet]}>
-          <AppCard style={styles.profileCard}>
-            <View style={styles.productIcon}>
-              <Ionicons name="cube-outline" size={38} color={colors.primary} />
-            </View>
-
+          <View style={styles.profileInfo}>
             <Text style={styles.productName}>{product.name}</Text>
 
             <StatusBadge
               label={product.isActive ? "Active" : "Inactive"}
               variant={product.isActive ? "success" : "neutral"}
             />
-          </AppCard>
+          </View>
+        </AppCard>
 
-          {error && (
-            <View style={styles.errorBanner}>
+        <AppCard style={styles.card}>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionIcon}>
               <Ionicons
-                name="warning-outline"
-                size={18}
-                color={colors.danger}
+                name="information-circle-outline"
+                size={20}
+                color={colors.primary}
+              />
+            </View>
+
+            <Text style={styles.sectionTitle}> Product Information</Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Selling Price</Text>
+
+            <Text style={styles.infoValue}>₱{product.price.toFixed(2)}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.infoRowVertical}>
+            <Text style={styles.infoLabel}>Description</Text>
+
+            <Text style={styles.descriptionValue}>
+              {product.description || "No description provided."}
+            </Text>
+          </View>
+        </AppCard>
+
+        <AppCard style={styles.card}>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionIcon}>
+              <Ionicons name="cube-outline" size={20} color={colors.primary} />
+            </View>
+
+            <View style={styles.sectionTitleContent}>
+              <Text style={styles.sectionTitle}>Inventory</Text>
+
+              <Text style={styles.sectionSubtitle}>
+                Stock information for this product
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.inventoryStatusRow}>
+            <View>
+              <Text style={styles.inventoryLabel}>Stock Status</Text>
+
+              <View style={styles.statusBadgeWrapper}>
+                <StatusBadge
+                  label={inventoryStatus.label}
+                  variant={inventoryStatus.variant}
+                />
+              </View>
+            </View>
+
+            <View style={styles.stockValueContainer}>
+              <Text style={styles.stockValue}>
+                {inventory ? formatQuantity(inventory.currentQuantity) : "0"}
+              </Text>
+
+              <Text style={styles.stockUnit}>{inventory?.unit || "piece"}</Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.inventoryGrid}>
+            <View style={styles.inventoryInfoItem}>
+              <Text style={styles.infoLabel}>Cost per Unit</Text>
+
+              <Text style={styles.inventoryInfoValue}>
+                ₱{(inventory?.costPerUnit || 0).toFixed(2)}
+              </Text>
+            </View>
+
+            <View style={styles.inventoryInfoItem}>
+              <Text style={styles.infoLabel}>Low Stock Level</Text>
+
+              <Text style={styles.inventoryInfoValue}>
+                {inventory ? formatQuantity(inventory.lowStockLevel) : "0"}
+              </Text>
+            </View>
+          </View>
+
+          {!inventory?.isTrackingEnabled ? (
+            <View style={styles.trackingNotice}>
+              <Ionicons
+                name="information-circle-outline"
+                size={17}
+                color={colors.textMuted}
               />
 
-              <Text style={styles.errorBannerText}>{error}</Text>
+              <Text style={styles.trackingNoticeText}>
+                Inventory tracking is currently disabled for this product.
+              </Text>
             </View>
-          )}
+          ) : null}
 
-          <AppCard style={styles.infoCard}>
-            <Text style={styles.sectionTitle}>Product Information</Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.historyLink,
+              pressed && styles.historyLinkPressed,
+            ]}
+            onPress={() =>
+              router.replace({
+                pathname: "/inventory-history",
+                params: {
+                  id: product.id.toString(),
+                },
+              })
+            }
+          >
+            <Ionicons name="time-outline" size={16} color={colors.primary} />
 
-            <View style={styles.infoRow}>
-              <View style={styles.infoIcon}>
-                <Ionicons
-                  name="pricetag-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-              </View>
+            <Text style={styles.historyLinkText}>View Inventory History</Text>
 
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Selling Price</Text>
+            <Ionicons name="chevron-forward" size={15} color={colors.primary} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.historyLink,
+              pressed && styles.historyLinkPressed,
+            ]}
+            onPress={() =>
+              router.replace({
+                pathname: "/inventory-settings",
+                params: {
+                  id: product.id.toString(),
+                },
+              })
+            }
+          >
+            <Ionicons
+              name="settings-outline"
+              size={16}
+              color={colors.primary}
+            />
 
-                <Text style={styles.price}>₱{product.price.toFixed(2)}</Text>
-              </View>
-            </View>
+            <Text style={styles.historyLinkText}>Inventory Settings</Text>
 
-            <View style={styles.divider} />
+            <Ionicons name="chevron-forward" size={15} color={colors.primary} />
+          </Pressable>
+        </AppCard>
 
-            <View style={styles.infoRow}>
-              <View style={styles.infoIcon}>
-                <Ionicons
-                  name="document-text-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-              </View>
-
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Description</Text>
-
-                <Text style={styles.infoValue}>
-                  {product.description || "No description"}
-                </Text>
-              </View>
-            </View>
-          </AppCard>
-
-          <View style={[styles.actions, isTablet && styles.actionsTablet]}>
+        <AppCard style={styles.card}>
+          <View style={styles.actions}>
             <AppButton
               title="Edit Product"
               icon="create-outline"
               onPress={() =>
-                router.push({
+                router.replace({
                   pathname: "/edit-product",
                   params: {
                     id: product.id.toString(),
                   },
                 })
               }
-              fullWidth={!isTablet}
+              fullWidth
+            />
+
+            <AppButton
+              title="Add Stock"
+              icon="arrow-down-circle-outline"
+              onPress={() =>
+                router.replace({
+                  pathname: "/stock-in",
+                  params: {
+                    id: product.id.toString(),
+                  },
+                })
+              }
+              fullWidth
+            />
+
+            <AppButton
+              title="Remove Stock"
+              icon="arrow-up-circle-outline"
+              onPress={() =>
+                router.replace({
+                  pathname: "/stock-out",
+                  params: {
+                    id: product.id.toString(),
+                  },
+                })
+              }
+              fullWidth
+            />
+
+            <AppButton
+              title="Adjust Stock"
+              icon="options-outline"
+              onPress={() =>
+                router.replace({
+                  pathname: "/stock-adjustment",
+                  params: {
+                    id: product.id.toString(),
+                  },
+                })
+              }
+              fullWidth
             />
 
             <AppButton
@@ -325,15 +485,23 @@ export default function ProductDetailsScreen() {
               icon={
                 product.isActive
                   ? "pause-circle-outline"
-                  : "checkmark-circle-outline"
+                  : "play-circle-outline"
               }
-              variant={product.isActive ? "danger" : "secondary"}
+              variant={product.isActive ? "secondary" : "primary"}
               onPress={handleToggleStatus}
               loading={updatingStatus}
-              fullWidth={!isTablet}
+              fullWidth
+            />
+
+            <AppButton
+              title="Back to Products"
+              icon="arrow-back"
+              variant="ghost"
+              onPress={handleBackToProducts}
+              fullWidth
             />
           </View>
-        </View>
+        </AppCard>
       </ScrollView>
     </View>
   );
@@ -345,105 +513,47 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
 
-  scrollContent: {
-    paddingBottom: spacing["5xl"],
-  },
-
-  scrollContentTablet: {
-    paddingBottom: spacing["5xl"],
-  },
-
-  hero: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    paddingHorizontal: spacing["2xl"],
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  loadingHero: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    paddingHorizontal: spacing["2xl"],
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  backButton: {
-    position: "absolute",
-    top: 52,
-    left: spacing.lg,
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  loadingIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  title: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  loadingTitle: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  subtitle: {
-    maxWidth: "80%",
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
   content: {
-    width: "100%",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    gap: spacing.lg,
+    paddingBottom: spacing["4xl"],
   },
 
   contentTablet: {
+    width: "100%",
     maxWidth: 720,
     alignSelf: "center",
-    paddingHorizontal: 0,
+  },
+
+  errorScreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: PAGE_PADDING,
+    gap: spacing.lg,
+  },
+
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: PAGE_PADDING,
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: theme.radius.md,
+    backgroundColor: colors.dangerLight,
+  },
+
+  errorBannerText: {
+    flex: 1,
+    ...typography.caption,
+    color: colors.danger,
   },
 
   profileCard: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingVertical: spacing["3xl"],
+    marginHorizontal: PAGE_PADDING,
+    marginTop: spacing.xl,
   },
 
   productIcon: {
@@ -455,41 +565,64 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
   },
 
+  profileInfo: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: spacing.lg,
+  },
+
   productName: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  infoCard: {
-    padding: spacing.lg,
-  },
-
-  sectionTitle: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
     ...typography.h3,
     color: colors.text,
   },
 
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  card: {
+    marginHorizontal: PAGE_PADDING,
+    marginTop: spacing.lg,
   },
 
-  infoIcon: {
-    width: 40,
-    height: 40,
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+
+  sectionIcon: {
+    width: 38,
+    height: 38,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: theme.radius.md,
     backgroundColor: colors.primaryLight,
   },
 
-  infoContent: {
+  sectionTitleContent: {
     flex: 1,
+    minWidth: 0,
     marginLeft: spacing.md,
+  },
+
+  sectionTitle: {
+    ...typography.bodyMedium,
+    color: colors.text,
+  },
+
+  sectionSubtitle: {
+    marginTop: spacing.xs,
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+
+  infoRowVertical: {
+    gap: spacing.sm,
   },
 
   infoLabel: {
@@ -498,15 +631,15 @@ const styles = StyleSheet.create({
   },
 
   infoValue: {
-    marginTop: 2,
-    ...typography.body,
+    ...typography.bodyMedium,
     color: colors.text,
+    textAlign: "right",
   },
 
-  price: {
-    marginTop: 2,
-    ...typography.h3,
+  descriptionValue: {
+    ...typography.body,
     color: colors.text,
+    lineHeight: 22,
   },
 
   divider: {
@@ -515,69 +648,90 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
 
-  actions: {
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-
-  actionsTablet: {
+  inventoryStatusRow: {
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.lg,
   },
 
-  errorBanner: {
+  inventoryLabel: {
+    marginBottom: spacing.sm,
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+
+  statusBadgeWrapper: {
+    alignSelf: "flex-start",
+  },
+
+  stockValueContainer: {
+    alignItems: "flex-end",
+  },
+
+  stockValue: {
+    ...typography.h2,
+    color: colors.text,
+  },
+
+  stockUnit: {
+    marginTop: spacing.xs,
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+
+  inventoryGrid: {
+    flexDirection: "row",
+    gap: spacing.lg,
+  },
+
+  inventoryInfoItem: {
+    flex: 1,
+  },
+
+  inventoryInfoValue: {
+    marginTop: spacing.xs,
+    ...typography.bodyMedium,
+    color: colors.text,
+  },
+
+  trackingNotice: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing.sm,
+    marginTop: spacing.lg,
     padding: spacing.md,
     borderRadius: theme.radius.md,
-    backgroundColor: colors.dangerLight,
+    backgroundColor: colors.background,
   },
 
-  errorBannerText: {
+  trackingNoticeText: {
     flex: 1,
-    ...typography.small,
-    color: colors.danger,
-  },
-
-  centerState: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  loadingText: {
-    marginTop: spacing.md,
-    ...typography.body,
+    ...typography.caption,
     color: colors.textMuted,
+    lineHeight: 19,
   },
 
-  errorIcon: {
-    width: 64,
-    height: 64,
+  historyLink: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.dangerLight,
-  },
-
-  errorTitle: {
+    alignSelf: "flex-start",
+    gap: spacing.xs,
     marginTop: spacing.lg,
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
+    paddingVertical: spacing.xs,
   },
 
-  errorMessage: {
-    maxWidth: 420,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xl,
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
+  historyLinkPressed: {
+    opacity: 0.6,
   },
 
-  pressed: {
-    opacity: 0.8,
+  historyLinkText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "600",
+  },
+
+  actions: {
+    gap: spacing.md,
   },
 });

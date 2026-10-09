@@ -1,4 +1,5 @@
 import { getDatabase } from "@/database";
+import { doAction } from "@/hooks/actions";
 import type {
   CreateCustomerInput,
   Customer,
@@ -45,15 +46,13 @@ export async function getCustomers(): Promise<Customer[]> {
         updated_at
       FROM customers
       ORDER BY name COLLATE NOCASE ASC;
-    `
+    `,
   );
 
   return rows.map(mapCustomer);
 }
 
-export async function getCustomerById(
-  id: number
-): Promise<Customer | null> {
+export async function getCustomerById(id: number): Promise<Customer | null> {
   const db = await getDatabase();
 
   const row = await db.getFirstAsync<CustomerRow>(
@@ -70,14 +69,14 @@ export async function getCustomerById(
       FROM customers
       WHERE id = ?;
     `,
-    id
+    id,
   );
 
   return row ? mapCustomer(row) : null;
 }
 
 export async function createCustomer(
-  input: CreateCustomerInput
+  input: CreateCustomerInput,
 ): Promise<Customer> {
   const db = await getDatabase();
 
@@ -101,25 +100,74 @@ export async function createCustomer(
     input.address?.trim() ?? "",
     input.notes?.trim() ?? "",
     now,
-    now
+    now,
   );
 
   const customer = await getCustomerById(result.lastInsertRowId);
 
   if (!customer) {
-    throw new Error(
-      "Customer was created but could not be retrieved."
-    );
+    throw new Error("Customer was created but could not be retrieved.");
   }
+
+  await doAction("customer.created", {
+    customer,
+  });
 
   return customer;
 }
 
 export async function updateCustomer(
   id: number,
-  input: UpdateCustomerInput
+  input: UpdateCustomerInput,
 ): Promise<Customer> {
   const db = await getDatabase();
+
+  const existingCustomer = await getCustomerById(id);
+
+  if (!existingCustomer) {
+    throw new Error("Customer could not be found.");
+  }
+
+  const updatedName = input.name.trim();
+  const updatedPhone = input.phone?.trim() ?? "";
+  const updatedAddress = input.address?.trim() ?? "";
+  const updatedNotes = input.notes?.trim() ?? "";
+
+  const changes: Record<
+    string,
+    {
+      from: unknown;
+      to: unknown;
+    }
+  > = {};
+
+  if (existingCustomer.name !== updatedName) {
+    changes.name = {
+      from: existingCustomer.name,
+      to: updatedName,
+    };
+  }
+
+  if (existingCustomer.phone !== updatedPhone) {
+    changes.phone = {
+      from: existingCustomer.phone,
+      to: updatedPhone,
+    };
+  }
+
+  if (existingCustomer.address !== updatedAddress) {
+    changes.address = {
+      from: existingCustomer.address,
+      to: updatedAddress,
+    };
+  }
+
+  if (existingCustomer.notes !== updatedNotes) {
+    changes.notes = {
+      from: existingCustomer.notes,
+      to: updatedNotes,
+    };
+  }
 
   const now = new Date().toISOString();
 
@@ -134,20 +182,25 @@ export async function updateCustomer(
         updated_at = ?
       WHERE id = ?;
     `,
-    input.name.trim(),
-    input.phone?.trim() ?? "",
-    input.address?.trim() ?? "",
-    input.notes?.trim() ?? "",
+    updatedName,
+    updatedPhone,
+    updatedAddress,
+    updatedNotes,
     now,
-    id
+    id,
   );
 
   const customer = await getCustomerById(id);
 
   if (!customer) {
-    throw new Error(
-      "Customer could not be found after update."
-    );
+    throw new Error("Customer could not be found after update.");
+  }
+
+  if (Object.keys(changes).length > 0) {
+    await doAction("customer.updated", {
+      customer,
+      changes,
+    });
   }
 
   return customer;
@@ -155,9 +208,19 @@ export async function updateCustomer(
 
 export async function setCustomerActive(
   id: number,
-  isActive: boolean
+  isActive: boolean,
 ): Promise<Customer> {
   const db = await getDatabase();
+
+  const existingCustomer = await getCustomerById(id);
+
+  if (!existingCustomer) {
+    throw new Error("Customer could not be found.");
+  }
+
+  if (existingCustomer.isActive === isActive) {
+    return existingCustomer;
+  }
 
   const now = new Date().toISOString();
 
@@ -171,17 +234,24 @@ export async function setCustomerActive(
     `,
     isActive ? 1 : 0,
     now,
-    id
+    id,
   );
 
   const customer = await getCustomerById(id);
 
   if (!customer) {
-    throw new Error(
-      "Customer could not be found after status update."
-    );
+    throw new Error("Customer could not be found after status update.");
+  }
+
+  if (isActive) {
+    await doAction("customer.activated", {
+      customer,
+    });
+  } else {
+    await doAction("customer.deactivated", {
+      customer,
+    });
   }
 
   return customer;
 }
-

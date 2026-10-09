@@ -2,10 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,11 +14,15 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { AppInput } from "@/components/ui/AppInput";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 import type { Customer } from "@/models/customer";
 import {
   getCustomerById,
@@ -141,11 +143,7 @@ export default function EditCustomerScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-
-          <Text style={styles.loadingText}>Loading customer...</Text>
-        </View>
+        <LoadingState message="Loading customer..." />
       </View>
     );
   }
@@ -154,17 +152,7 @@ export default function EditCustomerScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.errorScreen}>
-          <View style={styles.errorIcon}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={32}
-              color={colors.danger}
-            />
-          </View>
-
-          <Text style={styles.errorTitle}>Unable to load customer</Text>
-
-          <Text style={styles.errorMessage}>{error}</Text>
+          <ErrorState title="Unable to load customer" message={error} />
 
           <AppButton
             title="Back to Customer"
@@ -176,6 +164,10 @@ export default function EditCustomerScreen() {
     );
   }
 
+  if (!customer) {
+    return null;
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -183,30 +175,13 @@ export default function EditCustomerScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.hero}>
-          <Pressable
-            onPress={handleBackToDetails}
-            disabled={saving}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && !saving && styles.backButtonPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Back to customer details"
-          >
-            <Ionicons name="arrow-back" size={21} color={colors.text} />
-          </Pressable>
-
-          <View style={styles.heroIcon}>
-            <Ionicons name="create-outline" size={28} color={colors.primary} />
-          </View>
-
-          <Text style={styles.title}>Edit Customer</Text>
-
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {customer?.name}
-          </Text>
-        </View>
+        <PageHero
+          icon="create-outline"
+          title="Edit Customer"
+          subtitle={customer.name}
+          onBack={handleBackToDetails}
+          disabled={saving}
+        />
 
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -323,62 +298,9 @@ const styles = StyleSheet.create({
     paddingBottom: spacing["5xl"],
   },
 
-  hero: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    paddingHorizontal: spacing.lg,
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  backButton: {
-    position: "absolute",
-    left: spacing.lg,
-    top: 54,
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  backButtonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.96 }],
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  title: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  subtitle: {
-    maxWidth: 360,
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
   content: {
     width: "100%",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: PAGE_PADDING,
     paddingTop: spacing.xl,
   },
 
@@ -445,48 +367,10 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
 
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  loadingText: {
-    marginTop: spacing.md,
-    ...typography.body,
-    color: colors.textMuted,
-  },
-
   errorScreen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  errorIcon: {
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.dangerLight,
-  },
-
-  errorTitle: {
-    marginTop: spacing.lg,
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  errorMessage: {
-    maxWidth: 420,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xl,
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
+    paddingHorizontal: PAGE_PADDING,
   },
 });

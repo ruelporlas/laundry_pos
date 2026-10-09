@@ -1,10 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,12 +12,17 @@ import {
 
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 import type { Service } from "@/models/service";
 import {
   getServiceById,
@@ -31,7 +34,6 @@ export default function ServiceDetailsScreen() {
   const { width } = useWindowDimensions();
 
   const isTablet = width >= 768;
-  const horizontalPadding = isTablet ? spacing["2xl"] : spacing.lg;
 
   const [service, setService] = useState<Service | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,21 +49,21 @@ export default function ServiceDetailsScreen() {
 
     const serviceId = Number(id);
 
-    if (!Number.isInteger(serviceId)) {
+    if (!Number.isInteger(serviceId) || serviceId <= 0) {
       setError("Invalid service ID.");
       setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
       setError("");
+      setLoading(true);
 
       const result = await getServiceById(serviceId);
 
       if (!result) {
-        setError("Service could not be found.");
         setService(null);
+        setError("Service could not be found.");
         return;
       }
 
@@ -77,12 +79,81 @@ export default function ServiceDetailsScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    loadService();
-  }, [loadService]);
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      async function loadOnFocus() {
+        if (!id) {
+          if (isActive) {
+            setError("Service ID is missing.");
+            setLoading(false);
+          }
+
+          return;
+        }
+
+        const serviceId = Number(id);
+
+        if (!Number.isInteger(serviceId) || serviceId <= 0) {
+          if (isActive) {
+            setError("Invalid service ID.");
+            setLoading(false);
+          }
+
+          return;
+        }
+
+        try {
+          if (isActive) {
+            setError("");
+            setLoading(true);
+          }
+
+          const result = await getServiceById(serviceId);
+
+          if (!isActive) {
+            return;
+          }
+
+          if (!result) {
+            setService(null);
+            setError("Service could not be found.");
+            return;
+          }
+
+          setService(result);
+        } catch (error) {
+          console.error("Failed to load service:", error);
+
+          if (isActive) {
+            setError(
+              error instanceof Error
+                ? error.message
+                : "Unable to load service.",
+            );
+          }
+        } finally {
+          if (isActive) {
+            setLoading(false);
+          }
+        }
+      }
+
+      loadOnFocus();
+
+      return () => {
+        isActive = false;
+      };
+    }, [id]),
+  );
+
+  const handleBackToServices = () => {
+    router.replace("/services");
+  };
 
   const handleToggleActive = () => {
-    if (!service) {
+    if (!service || processing) {
       return;
     }
 
@@ -103,6 +174,7 @@ export default function ServiceDetailsScreen() {
           onPress: async () => {
             try {
               setProcessing(true);
+              setError("");
 
               const updatedService = await setServiceActive(
                 service.id,
@@ -113,8 +185,7 @@ export default function ServiceDetailsScreen() {
             } catch (error) {
               console.error("Failed to update service status:", error);
 
-              Alert.alert(
-                "Unable to Update",
+              setError(
                 error instanceof Error
                   ? error.message
                   : "The service status could not be updated.",
@@ -128,98 +199,60 @@ export default function ServiceDetailsScreen() {
     );
   };
 
-  if (loading) {
+  if (loading && !service) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingHero}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() => router.replace("/services")}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.backButtonPressed,
-            ]}
-          >
-            <Ionicons name="arrow-back" size={21} color={colors.text} />
-          </Pressable>
-        </View>
+        <PageHero
+          icon="construct-outline"
+          title="Service Details"
+          subtitle="Loading service..."
+          onBack={handleBackToServices}
+        />
 
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <LoadingState message="Loading service..." />
+      </View>
+    );
+  }
 
-          <Text style={styles.loadingText}>Loading service...</Text>
+  if (error && !service) {
+    return (
+      <View style={styles.container}>
+        <PageHero
+          icon="construct-outline"
+          title="Service Details"
+          subtitle="Service information"
+          onBack={handleBackToServices}
+        />
+
+        <View style={styles.errorScreen}>
+          <ErrorState title="Unable to load service" message={error} />
+
+          <AppButton
+            title="Try Again"
+            icon="refresh-outline"
+            onPress={loadService}
+          />
         </View>
       </View>
     );
   }
 
-  if (error || !service) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.loadingHero}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() => router.replace("/services")}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.backButtonPressed,
-            ]}
-          >
-            <Ionicons name="arrow-back" size={21} color={colors.text} />
-          </Pressable>
-        </View>
-
-        <View style={styles.centerContent}>
-          <View style={styles.errorIcon}>
-            <Ionicons name="warning-outline" size={30} color={colors.danger} />
-          </View>
-
-          <Text style={styles.errorTitle}>Unable to Load Service</Text>
-
-          <Text style={styles.errorMessage}>
-            {error || "The service could not be found."}
-          </Text>
-
-          <AppButton title="Try Again" icon="refresh" onPress={loadService} />
-        </View>
-      </View>
-    );
+  if (!service) {
+    return null;
   }
 
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            paddingHorizontal: horizontalPadding,
-          },
-        ]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View
-          style={[
-            styles.hero,
-            {
-              marginHorizontal: -horizontalPadding,
-              paddingHorizontal: horizontalPadding,
-            },
-          ]}
+        <PageHero
+          icon="construct-outline"
+          title={service.name}
+          onBack={handleBackToServices}
+          disabled={processing}
         >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() => router.replace("/services")}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.backButtonPressed,
-            ]}
-          >
-            <Ionicons name="arrow-back" size={21} color={colors.text} />
-          </Pressable>
-
           <View style={styles.heroIcon}>
             <Ionicons
               name="construct-outline"
@@ -227,43 +260,34 @@ export default function ServiceDetailsScreen() {
               color={colors.primary}
             />
           </View>
+        </PageHero>
 
-          <Text style={styles.heroTitle}>{service.name}</Text>
-
+        <View style={[styles.content, isTablet && styles.contentTablet]}>
           <View style={styles.heroStatus}>
             <StatusBadge
               label={service.isActive ? "Active" : "Inactive"}
               variant={service.isActive ? "success" : "neutral"}
             />
           </View>
-        </View>
 
-        <View
-          style={[
-            styles.content,
-            {
-              maxWidth: isTablet ? 720 : 600,
-            },
-          ]}
-        >
-          <AppCard padding={spacing.xl}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
-                <Ionicons
-                  name="information-circle-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-              </View>
+          {error ? (
+            <View style={styles.errorBanner}>
+              <Ionicons
+                name="warning-outline"
+                size={18}
+                color={colors.danger}
+              />
 
-              <View style={styles.sectionHeaderText}>
-                <Text style={styles.sectionTitle}>Service Information</Text>
-
-                <Text style={styles.sectionSubtitle}>
-                  Details and pricing for this service.
-                </Text>
-              </View>
+              <Text style={styles.errorBannerText}>{error}</Text>
             </View>
+          ) : null}
+
+          <AppCard padding={spacing.xl}>
+            <SectionHeader
+              icon="information-circle-outline"
+              title="Service Information"
+              subtitle="Details and pricing for this service."
+            />
 
             <View style={styles.priceContainer}>
               <Text style={styles.priceLabel}>Selling Price</Text>
@@ -334,7 +358,14 @@ export default function ServiceDetailsScreen() {
             <AppButton
               title="Edit Service"
               icon="create-outline"
-              onPress={() => router.push(`/edit-service?id=${service.id}`)}
+              onPress={() =>
+                router.push({
+                  pathname: "/edit-service",
+                  params: {
+                    id: service.id.toString(),
+                  },
+                })
+              }
               disabled={processing}
               fullWidth={!isTablet}
             />
@@ -351,6 +382,7 @@ export default function ServiceDetailsScreen() {
               variant={service.isActive ? "danger" : "secondary"}
               onPress={handleToggleActive}
               loading={processing}
+              disabled={processing}
               fullWidth={!isTablet}
             />
           </View>
@@ -367,98 +399,47 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    flexGrow: 1,
     paddingBottom: spacing["5xl"],
   },
 
-  hero: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  loadingHero: {
-    minHeight: 88,
-    backgroundColor: colors.primaryLight,
-  },
-
-  backButton: {
-    position: "absolute",
-    left: 16,
-    top: 18,
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-  },
-
-  backButtonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.96 }],
-  },
-
   heroIcon: {
-    width: 52,
-    height: 52,
+    width: 56,
+    height: 56,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-  },
-
-  heroTitle: {
-    maxWidth: "90%",
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  heroStatus: {
-    marginTop: spacing.sm,
+    backgroundColor: colors.white,
   },
 
   content: {
     width: "100%",
-    alignSelf: "center",
+    paddingHorizontal: PAGE_PADDING,
     paddingTop: spacing.xl,
+    gap: spacing.lg,
   },
 
-  sectionHeader: {
+  contentTablet: {
+    maxWidth: 720,
+    alignSelf: "center",
+  },
+
+  heroStatus: {
+    alignItems: "center",
+  },
+
+  errorBanner: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.xl,
-  },
-
-  sectionIcon: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    padding: spacing.md,
     borderRadius: theme.radius.md,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.dangerLight,
   },
 
-  sectionHeaderText: {
+  errorBannerText: {
     flex: 1,
-    marginLeft: spacing.md,
-  },
-
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
-
-  sectionSubtitle: {
-    marginTop: 3,
     ...typography.small,
-    color: colors.textMuted,
+    color: colors.danger,
   },
 
   priceContainer: {
@@ -498,14 +479,13 @@ const styles = StyleSheet.create({
   },
 
   section: {
-    marginTop: spacing["2xl"],
+    gap: spacing.md,
   },
 
   sectionHeadingRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: spacing.md,
   },
 
   sectionHeading: {
@@ -552,48 +532,17 @@ const styles = StyleSheet.create({
 
   actions: {
     gap: spacing.md,
-    marginTop: spacing["2xl"],
+    marginTop: spacing.sm,
   },
 
   actionsTablet: {
     flexDirection: "row",
   },
 
-  centerContent: {
+  errorScreen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  loadingText: {
-    marginTop: spacing.md,
-    ...typography.body,
-    color: colors.textMuted,
-  },
-
-  errorIcon: {
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.dangerLight,
-  },
-
-  errorTitle: {
-    marginTop: spacing.lg,
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  errorMessage: {
-    maxWidth: 360,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xl,
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
+    paddingHorizontal: PAGE_PADDING,
   },
 });

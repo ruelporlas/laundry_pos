@@ -1,4 +1,5 @@
 import { getDatabase } from "@/database";
+import { doAction } from "@/hooks/actions";
 import type {
   Bundle,
   BundleItem,
@@ -26,10 +27,7 @@ type BundleItemRow = {
   unit_price: number | null;
 };
 
-function mapBundle(
-  row: BundleRow,
-  items: BundleItem[] = [],
-): Bundle {
+function mapBundle(row: BundleRow, items: BundleItem[] = []): Bundle {
   return {
     id: row.id,
     name: row.name,
@@ -42,9 +40,7 @@ function mapBundle(
   };
 }
 
-function mapBundleItem(
-  row: BundleItemRow,
-): BundleItem {
+function mapBundleItem(row: BundleItemRow): BundleItem {
   return {
     id: row.id,
     bundleId: row.bundle_id,
@@ -56,9 +52,7 @@ function mapBundleItem(
   };
 }
 
-async function getBundleItems(
-  bundleId: number,
-): Promise<BundleItem[]> {
+async function getBundleItems(bundleId: number): Promise<BundleItem[]> {
   const db = await getDatabase();
 
   const rows = await db.getAllAsync<BundleItemRow>(
@@ -102,11 +96,7 @@ async function getBundleItems(
   );
 
   return rows
-    .filter(
-      (row) =>
-        row.item_name !== null &&
-        row.unit_price !== null,
-    )
+    .filter((row) => row.item_name !== null && row.unit_price !== null)
     .map(mapBundleItem);
 }
 
@@ -133,17 +123,13 @@ export async function getBundles(): Promise<Bundle[]> {
   for (const row of rows) {
     const items = await getBundleItems(row.id);
 
-    bundles.push(
-      mapBundle(row, items),
-    );
+    bundles.push(mapBundle(row, items));
   }
 
   return bundles;
 }
 
-export async function getBundleById(
-  id: number,
-): Promise<Bundle | null> {
+export async function getBundleById(id: number): Promise<Bundle | null> {
   const db = await getDatabase();
 
   const row = await db.getFirstAsync<BundleRow>(
@@ -171,9 +157,7 @@ export async function getBundleById(
   return mapBundle(row, items);
 }
 
-export async function createBundle(
-  input: CreateBundleInput,
-): Promise<Bundle> {
+export async function createBundle(input: CreateBundleInput): Promise<Bundle> {
   const db = await getDatabase();
 
   const now = new Date().toISOString();
@@ -222,10 +206,12 @@ export async function createBundle(
   const bundle = await getBundleById(bundleId);
 
   if (!bundle) {
-    throw new Error(
-      "Bundle was created but could not be retrieved.",
-    );
+    throw new Error("Bundle was created but could not be retrieved.");
   }
+
+  await doAction("bundle.created", {
+    bundle,
+  });
 
   return bundle;
 }
@@ -239,9 +225,69 @@ export async function updateBundle(
   const existingBundle = await getBundleById(id);
 
   if (!existingBundle) {
-    throw new Error(
-      "Bundle could not be found.",
-    );
+    throw new Error("Bundle could not be found.");
+  }
+
+  const updatedName = input.name.trim();
+  const updatedDescription = input.description?.trim() ?? "";
+  const updatedPrice = input.price;
+
+  const changes: Record<
+    string,
+    {
+      from: unknown;
+      to: unknown;
+    }
+  > = {};
+
+  if (existingBundle.name !== updatedName) {
+    changes.name = {
+      from: existingBundle.name,
+      to: updatedName,
+    };
+  }
+
+  if (existingBundle.description !== updatedDescription) {
+    changes.description = {
+      from: existingBundle.description,
+      to: updatedDescription,
+    };
+  }
+
+  if (existingBundle.price !== updatedPrice) {
+    changes.price = {
+      from: existingBundle.price,
+      to: updatedPrice,
+    };
+  }
+
+  const existingItems = existingBundle.items.map((item) => ({
+    itemType: item.itemType,
+    itemId: item.itemId,
+    itemName: item.itemName,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+  }));
+
+  const updatedItems = input.items.map((item) => ({
+    itemType: item.itemType,
+    itemId: item.itemId,
+    quantity: item.quantity,
+  }));
+
+  const existingItemsForComparison = existingBundle.items.map((item) => ({
+    itemType: item.itemType,
+    itemId: item.itemId,
+    quantity: item.quantity,
+  }));
+
+  if (
+    JSON.stringify(existingItemsForComparison) !== JSON.stringify(updatedItems)
+  ) {
+    changes.items = {
+      from: existingItems,
+      to: updatedItems,
+    };
   }
 
   const now = new Date().toISOString();
@@ -259,9 +305,9 @@ export async function updateBundle(
         updated_at = ?
       WHERE id = ?;
     `,
-    input.name.trim(),
-    input.description?.trim() ?? "",
-    input.price,
+    updatedName,
+    updatedDescription,
+    updatedPrice,
     now,
     id,
   );
@@ -311,9 +357,14 @@ export async function updateBundle(
   const updatedBundle = await getBundleById(id);
 
   if (!updatedBundle) {
-    throw new Error(
-      "Bundle was updated but could not be retrieved.",
-    );
+    throw new Error("Bundle was updated but could not be retrieved.");
+  }
+
+  if (Object.keys(changes).length > 0) {
+    await doAction("bundle.updated", {
+      bundle: updatedBundle,
+      changes,
+    });
   }
 
   return updatedBundle;
@@ -324,6 +375,16 @@ export async function setBundleActive(
   isActive: boolean,
 ): Promise<Bundle> {
   const db = await getDatabase();
+
+  const existingBundle = await getBundleById(id);
+
+  if (!existingBundle) {
+    throw new Error("Bundle could not be found.");
+  }
+
+  if (existingBundle.isActive === isActive) {
+    return existingBundle;
+  }
 
   const now = new Date().toISOString();
 
@@ -343,9 +404,17 @@ export async function setBundleActive(
   const bundle = await getBundleById(id);
 
   if (!bundle) {
-    throw new Error(
-      "Bundle could not be found after status update.",
-    );
+    throw new Error("Bundle could not be found after status update.");
+  }
+
+  if (isActive) {
+    await doAction("bundle.activated", {
+      bundle,
+    });
+  } else {
+    await doAction("bundle.deactivated", {
+      bundle,
+    });
   }
 
   return bundle;

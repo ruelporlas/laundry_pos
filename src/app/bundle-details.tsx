@@ -2,9 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,12 +12,17 @@ import {
 
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 
 import type { Bundle } from "@/models/bundle";
 
@@ -30,6 +33,7 @@ import {
 
 export default function BundleDetailsScreen() {
   const { width } = useWindowDimensions();
+
   const { id } = useLocalSearchParams<{
     id: string;
   }>();
@@ -68,11 +72,13 @@ export default function BundleDetailsScreen() {
       }
 
       setBundle(result);
-    } catch (error) {
-      console.error("Failed to load bundle:", error);
+    } catch (loadError) {
+      console.error("Failed to load bundle:", loadError);
 
       setError(
-        error instanceof Error ? error.message : "Unable to load bundle.",
+        loadError instanceof Error
+          ? loadError.message
+          : "Unable to load bundle.",
       );
     } finally {
       setLoading(false);
@@ -115,13 +121,13 @@ export default function BundleDetailsScreen() {
               );
 
               setBundle(updatedBundle);
-            } catch (error) {
-              console.error("Failed to update bundle status:", error);
+            } catch (updateError) {
+              console.error("Failed to update bundle status:", updateError);
 
               Alert.alert(
                 "Unable to Update",
-                error instanceof Error
-                  ? error.message
+                updateError instanceof Error
+                  ? updateError.message
                   : "The bundle status could not be updated.",
               );
             } finally {
@@ -133,33 +139,21 @@ export default function BundleDetailsScreen() {
     );
   };
 
+  const handleBackToBundles = () => {
+    router.replace("/bundles");
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.hero}>
-          <Pressable
-            onPress={() => router.replace("/bundles")}
-            style={styles.backButton}
-            accessibilityRole="button"
-            accessibilityLabel="Back to bundles"
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
-          </Pressable>
+        <PageHero
+          icon="gift-outline"
+          title="Bundle Details"
+          subtitle="View and manage bundle"
+          onBack={handleBackToBundles}
+        />
 
-          <View style={styles.heroIcon}>
-            <Ionicons name="gift-outline" size={30} color={colors.primary} />
-          </View>
-
-          <Text style={styles.heroTitle}>Bundle Details</Text>
-
-          <Text style={styles.heroSubtitle}>View and manage bundle</Text>
-        </View>
-
-        <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={colors.primary} />
-
-          <Text style={styles.loadingText}>Loading bundle...</Text>
-        </View>
+        <LoadingState message="Loading bundle..." />
       </View>
     );
   }
@@ -167,37 +161,24 @@ export default function BundleDetailsScreen() {
   if (error || !bundle) {
     return (
       <View style={styles.container}>
-        <View style={styles.hero}>
-          <Pressable
-            onPress={() => router.replace("/bundles")}
-            style={styles.backButton}
-            accessibilityRole="button"
-            accessibilityLabel="Back to bundles"
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
-          </Pressable>
+        <PageHero
+          icon="gift-outline"
+          title="Bundle Details"
+          subtitle="View and manage bundle"
+          onBack={handleBackToBundles}
+        />
 
-          <View style={styles.heroIcon}>
-            <Ionicons name="gift-outline" size={30} color={colors.primary} />
-          </View>
+        <ErrorState
+          title="Unable to Load Bundle"
+          message={error || "The bundle could not be found."}
+        />
 
-          <Text style={styles.heroTitle}>Bundle Details</Text>
-
-          <Text style={styles.heroSubtitle}>View and manage bundle</Text>
-        </View>
-
-        <View style={styles.centerContent}>
-          <View style={styles.errorIcon}>
-            <Ionicons name="warning-outline" size={30} color={colors.danger} />
-          </View>
-
-          <Text style={styles.errorTitle}>Unable to Load Bundle</Text>
-
-          <Text style={styles.errorMessage}>
-            {error || "The bundle could not be found."}
-          </Text>
-
-          <AppButton title="Try Again" icon="refresh" onPress={loadBundle} />
+        <View style={styles.retryButton}>
+          <AppButton
+            title="Try Again"
+            icon="refresh-outline"
+            onPress={loadBundle}
+          />
         </View>
       </View>
     );
@@ -205,26 +186,13 @@ export default function BundleDetailsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.hero}>
-        <Pressable
-          onPress={() => router.replace("/bundles")}
-          style={styles.backButton}
-          accessibilityRole="button"
-          accessibilityLabel="Back to bundles"
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
-        </Pressable>
-
-        <View style={styles.heroIcon}>
-          <Ionicons name="gift-outline" size={30} color={colors.primary} />
-        </View>
-
-        <Text style={styles.heroTitle}>Bundle Details</Text>
-
-        <Text style={styles.heroSubtitle} numberOfLines={1}>
-          {bundle.name}
-        </Text>
-      </View>
+      <PageHero
+        icon="gift-outline"
+        title="Bundle Details"
+        subtitle={bundle.name}
+        onBack={handleBackToBundles}
+        disabled={processing}
+      />
 
       <ScrollView
         contentContainerStyle={[
@@ -251,7 +219,12 @@ export default function BundleDetailsScreen() {
         </AppCard>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Bundle Information</Text>
+          <SectionHeader
+            icon="information-circle-outline"
+            title="Bundle Information"
+          />
+
+          <View style={styles.sectionCardSpacing} />
 
           <AppCard>
             <View style={styles.infoRow}>
@@ -294,7 +267,7 @@ export default function BundleDetailsScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <View>
+            <View style={styles.sectionHeaderText}>
               <Text style={styles.sectionTitle}>Included Items</Text>
 
               <Text style={styles.sectionDescription}>
@@ -329,7 +302,11 @@ export default function BundleDetailsScreen() {
                         : "construct-outline"
                     }
                     size={20}
-                    color={colors.primary}
+                    color={
+                      item.itemType === "product"
+                        ? colors.primary
+                        : colors.accent
+                    }
                   />
                 </View>
 
@@ -406,103 +383,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
 
-  hero: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    paddingHorizontal: spacing["2xl"],
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  backButton: {
-    position: "absolute",
-    left: spacing.lg,
-    bottom: 22,
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  heroTitle: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  heroSubtitle: {
-    maxWidth: 420,
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
   content: {
     width: "100%",
     maxWidth: 720,
     alignSelf: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: PAGE_PADDING,
     paddingTop: spacing.xl,
     paddingBottom: spacing["5xl"],
   },
 
   contentTablet: {
-    paddingHorizontal: spacing["2xl"],
+    paddingHorizontal: PAGE_PADDING,
   },
 
-  centerContent: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  loadingText: {
-    marginTop: spacing.md,
-    ...typography.body,
-    color: colors.textMuted,
-  },
-
-  errorIcon: {
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.dangerLight,
-  },
-
-  errorTitle: {
+  retryButton: {
+    alignSelf: "center",
+    paddingHorizontal: PAGE_PADDING,
     marginTop: spacing.lg,
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  errorMessage: {
-    maxWidth: 360,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xl,
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
   },
 
   profileCard: {
@@ -534,8 +431,16 @@ const styles = StyleSheet.create({
     marginTop: spacing["2xl"],
   },
 
+  sectionCardSpacing: {
+    height: spacing.md,
+  },
+
   sectionHeader: {
     marginBottom: spacing.md,
+  },
+
+  sectionHeaderText: {
+    flex: 1,
   },
 
   sectionTitle: {

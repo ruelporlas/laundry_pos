@@ -1,6 +1,6 @@
 import { getDatabase } from "./database";
 
-const DATABASE_VERSION = 8;
+const DATABASE_VERSION = 14;
 
 export async function runMigrations(): Promise<void> {
   const db = await getDatabase();
@@ -55,6 +55,30 @@ async function applyMigrations(
 
     if (currentVersion < 8) {
       await migrateToVersion8(db);
+    }
+
+    if (currentVersion < 9) {
+      await migrateToVersion9(db);
+    }
+
+    if (currentVersion < 10) {
+      await migrateToVersion10(db);
+    }
+
+    if (currentVersion < 11) {
+      await migrateToVersion11(db);
+    }
+
+    if (currentVersion < 12) {
+      await migrateToVersion12(db);
+    }
+
+    if (currentVersion < 13) {
+      await migrateToVersion13(db);
+    }
+
+    if (currentVersion < 14) {
+      await migrateToVersion14(db);
     }
 
     await db.execAsync(`
@@ -485,5 +509,371 @@ async function migrateToVersion8(
 
     CREATE INDEX IF NOT EXISTS idx_users_active
       ON users(is_active);
+  `);
+}
+
+async function migrateToVersion9(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS expense_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+      name TEXT NOT NULL UNIQUE,
+
+      description TEXT NOT NULL DEFAULT '',
+
+      is_active INTEGER NOT NULL DEFAULT 1,
+
+      created_at TEXT NOT NULL,
+
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_expense_categories_name
+      ON expense_categories(name);
+
+    CREATE INDEX IF NOT EXISTS idx_expense_categories_active
+      ON expense_categories(is_active);
+
+    CREATE TABLE IF NOT EXISTS expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+      category_id INTEGER NOT NULL,
+
+      description TEXT NOT NULL DEFAULT '',
+
+      amount REAL NOT NULL DEFAULT 0
+        CHECK (amount >= 0),
+
+      expense_date TEXT NOT NULL,
+
+      notes TEXT NOT NULL DEFAULT '',
+
+      created_by INTEGER,
+
+      created_at TEXT NOT NULL,
+
+      updated_by INTEGER,
+
+      updated_at TEXT,
+
+      is_voided INTEGER NOT NULL DEFAULT 0,
+
+      voided_by INTEGER,
+
+      voided_at TEXT,
+
+      void_reason TEXT,
+
+      FOREIGN KEY (category_id)
+        REFERENCES expense_categories(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_expenses_category_id
+      ON expenses(category_id);
+
+    CREATE INDEX IF NOT EXISTS idx_expenses_expense_date
+      ON expenses(expense_date);
+
+    CREATE INDEX IF NOT EXISTS idx_expenses_created_at
+      ON expenses(created_at);
+
+    CREATE INDEX IF NOT EXISTS idx_expenses_is_voided
+      ON expenses(is_voided);
+
+    CREATE INDEX IF NOT EXISTS idx_expenses_category_date
+      ON expenses(category_id, expense_date);
+
+    INSERT OR IGNORE INTO expense_categories (
+      name,
+      description,
+      is_active,
+      created_at,
+      updated_at
+    )
+    VALUES
+      ('Electricity', '', 1, datetime('now'), datetime('now')),
+      ('Water', '', 1, datetime('now'), datetime('now')),
+      ('Rent', '', 1, datetime('now'), datetime('now')),
+      ('Supplies', '', 1, datetime('now'), datetime('now')),
+      ('Maintenance', '', 1, datetime('now'), datetime('now')),
+      ('Other', '', 1, datetime('now'), datetime('now'));
+  `);
+}
+
+async function migrateToVersion10(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+): Promise<void> {
+  await db.execAsync(`
+    INSERT OR IGNORE INTO expense_categories (
+      name,
+      description,
+      is_active,
+      created_at,
+      updated_at
+    )
+    VALUES
+      (
+        'Detergent & Chemicals',
+        '',
+        1,
+        datetime('now'),
+        datetime('now')
+      ),
+      (
+        'Equipment',
+        '',
+        1,
+        datetime('now'),
+        datetime('now')
+      ),
+      (
+        'Salaries & Wages',
+        '',
+        1,
+        datetime('now'),
+        datetime('now')
+      ),
+      (
+        'Transportation',
+        '',
+        1,
+        datetime('now'),
+        datetime('now')
+      ),
+      (
+        'Internet & Phone',
+        '',
+        1,
+        datetime('now'),
+        datetime('now')
+      ),
+      (
+        'Permits & Licenses',
+        '',
+        1,
+        datetime('now'),
+        datetime('now')
+      );
+  `);
+}
+
+async function migrateToVersion11(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+      user_id INTEGER,
+
+      user_name TEXT NOT NULL,
+
+      action TEXT NOT NULL,
+
+      entity_type TEXT NOT NULL,
+
+      entity_id INTEGER,
+
+      entity_name TEXT NOT NULL DEFAULT '',
+
+      changes TEXT NOT NULL DEFAULT '{}',
+
+      created_at TEXT NOT NULL,
+
+      FOREIGN KEY (user_id)
+        REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id
+      ON audit_logs(user_id);
+
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_action
+      ON audit_logs(action);
+
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_type
+      ON audit_logs(entity_type);
+
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_id
+      ON audit_logs(entity_id);
+
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
+      ON audit_logs(created_at);
+
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_entity
+      ON audit_logs(entity_type, entity_id);
+  `);
+}
+
+async function migrateToVersion12(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS inventory_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+      product_id INTEGER NOT NULL UNIQUE,
+
+      is_tracking_enabled INTEGER NOT NULL DEFAULT 1,
+
+      unit TEXT NOT NULL DEFAULT 'piece',
+
+      current_quantity REAL NOT NULL DEFAULT 0,
+
+      low_stock_level REAL NOT NULL DEFAULT 0,
+
+      cost_per_unit REAL NOT NULL DEFAULT 0,
+
+      sku TEXT NOT NULL DEFAULT '',
+
+      supplier TEXT NOT NULL DEFAULT '',
+
+      created_at TEXT NOT NULL,
+
+      updated_at TEXT NOT NULL,
+
+      FOREIGN KEY (product_id)
+        REFERENCES products(id)
+        ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_inventory_items_product_id
+      ON inventory_items(product_id);
+
+    CREATE INDEX IF NOT EXISTS idx_inventory_items_tracking_enabled
+      ON inventory_items(is_tracking_enabled);
+
+    CREATE TABLE IF NOT EXISTS inventory_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+      inventory_item_id INTEGER NOT NULL,
+
+      movement_type TEXT NOT NULL
+        CHECK (
+          movement_type IN (
+            'stock_received',
+            'sale',
+            'return',
+            'adjustment',
+            'stock_removed'
+          )
+        ),
+
+      quantity REAL NOT NULL,
+
+      balance_after REAL NOT NULL,
+
+      unit_cost REAL NOT NULL DEFAULT 0,
+
+      supplier TEXT NOT NULL DEFAULT '',
+
+      reference TEXT NOT NULL DEFAULT '',
+
+      reason TEXT NOT NULL DEFAULT '',
+
+      notes TEXT NOT NULL DEFAULT '',
+
+      job_order_id INTEGER,
+
+      created_by INTEGER,
+
+      created_at TEXT NOT NULL,
+
+      FOREIGN KEY (inventory_item_id)
+        REFERENCES inventory_items(id)
+        ON DELETE CASCADE,
+
+      FOREIGN KEY (job_order_id)
+        REFERENCES job_orders(id)
+        ON DELETE SET NULL,
+
+      FOREIGN KEY (created_by)
+        REFERENCES users(id)
+        ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_inventory_movements_inventory_item_id
+      ON inventory_movements(inventory_item_id);
+
+    CREATE INDEX IF NOT EXISTS idx_inventory_movements_movement_type
+      ON inventory_movements(movement_type);
+
+    CREATE INDEX IF NOT EXISTS idx_inventory_movements_job_order_id
+      ON inventory_movements(job_order_id);
+
+    CREATE INDEX IF NOT EXISTS idx_inventory_movements_created_by
+      ON inventory_movements(created_by);
+
+    CREATE INDEX IF NOT EXISTS idx_inventory_movements_created_at
+      ON inventory_movements(created_at);
+  `);
+}
+
+async function migrateToVersion13(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+
+      shop_name TEXT NOT NULL DEFAULT '',
+
+      shop_address TEXT NOT NULL DEFAULT '',
+
+      shop_contact TEXT NOT NULL DEFAULT '',
+
+      claim_stub_message TEXT NOT NULL DEFAULT
+        'PLEASE DO NOT LOSE THIS TICKET. PRESENT THIS CLAIM STUB WHEN CLAIMING YOUR LAUNDRY.',
+
+      receipt_paper_width TEXT NOT NULL DEFAULT '58mm'
+        CHECK (
+          receipt_paper_width IN ('58mm', '80mm')
+        ),
+
+      created_at TEXT NOT NULL,
+
+      updated_at TEXT NOT NULL
+    );
+
+    INSERT OR IGNORE INTO app_settings (
+      id,
+      shop_name,
+      shop_address,
+      shop_contact,
+      claim_stub_message,
+      receipt_paper_width,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      1,
+      '',
+      '',
+      '',
+      'PLEASE DO NOT LOSE THIS TICKET. PRESENT THIS CLAIM STUB WHEN CLAIMING YOUR LAUNDRY.',
+      '58mm',
+      datetime('now'),
+      datetime('now')
+    );
+  `);
+}
+
+async function migrateToVersion14(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS promotion_cache (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+
+      enabled INTEGER NOT NULL DEFAULT 0
+        CHECK (enabled IN (0, 1)),
+
+      promotions_json TEXT NOT NULL DEFAULT '[]',
+
+      fetched_at TEXT NOT NULL,
+
+      updated_at TEXT NOT NULL
+    );
   `);
 }

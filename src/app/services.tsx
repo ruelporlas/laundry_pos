@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -16,17 +15,20 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 import type { Service } from "@/models/service";
 import { getServices } from "@/repositories/serviceRepository";
 
-const GRID_GAP = 16;
-const PAGE_PADDING = 16;
+const GRID_GAP = spacing.lg;
 const MAX_CONTENT_WIDTH = 1200;
 
 export default function ServicesScreen() {
@@ -160,15 +162,11 @@ export default function ServicesScreen() {
 
   const renderListHeader = () => (
     <View style={styles.headerContent}>
-      <View style={styles.headerHero}>
-        <View style={styles.heroIcon}>
-          <Ionicons name="construct-outline" size={30} color={colors.primary} />
-        </View>
-
-        <Text style={styles.title}>Services</Text>
-
-        <Text style={styles.subtitle}>Manage your laundry services</Text>
-      </View>
+      <PageHero
+        icon="construct-outline"
+        title="Services"
+        subtitle="Manage your laundry services"
+      />
 
       <View style={styles.controls}>
         <View style={styles.searchContainer}>
@@ -190,13 +188,13 @@ export default function ServicesScreen() {
             clearButtonMode="while-editing"
           />
 
-          {search.length > 0 && (
+          {search.length > 0 ? (
             <View style={styles.resultCount}>
               <Text style={styles.resultCountText}>
                 {filteredServices.length}
               </Text>
             </View>
-          )}
+          ) : null}
         </View>
 
         <View style={styles.actionRow}>
@@ -222,11 +220,7 @@ export default function ServicesScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-
-          <Text style={styles.loadingText}>Loading services...</Text>
-        </View>
+        <LoadingState message="Loading services..." />
       </View>
     );
   }
@@ -235,29 +229,13 @@ export default function ServicesScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.errorScreen}>
-          <View style={styles.errorIcon}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={32}
-              color={colors.danger}
-            />
-          </View>
+          <ErrorState title="Unable to load services" message={error} />
 
-          <Text style={styles.errorTitle}>Unable to load services</Text>
-
-          <Text style={styles.errorMessage}>{error}</Text>
-
-          <Pressable
+          <AppButton
+            title="Try Again"
+            icon="refresh-outline"
             onPress={loadServices}
-            style={({ pressed }) => [
-              styles.retryButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons name="refresh-outline" size={18} color={colors.white} />
-
-            <Text style={styles.retryText}>Try Again</Text>
-          </Pressable>
+          />
         </View>
       </View>
     );
@@ -298,7 +276,7 @@ export default function ServicesScreen() {
           }
         />
 
-        {error && services.length > 0 && (
+        {error && services.length > 0 ? (
           <View style={styles.refreshError}>
             <Ionicons name="warning-outline" size={16} color={colors.warning} />
 
@@ -312,7 +290,7 @@ export default function ServicesScreen() {
               <Text style={styles.refreshErrorAction}>Retry</Text>
             </Pressable>
           </View>
-        )}
+        ) : null}
       </View>
     </View>
   );
@@ -335,41 +313,6 @@ const styles = StyleSheet.create({
   headerContent: {
     width: "100%",
     paddingBottom: spacing.lg,
-  },
-
-  headerHero: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    marginHorizontal: -PAGE_PADDING,
-    paddingHorizontal: spacing["2xl"],
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  title: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  subtitle: {
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
   },
 
   controls: {
@@ -500,69 +443,11 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
 
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing["2xl"],
-  },
-
-  loadingText: {
-    marginTop: spacing.md,
-    ...typography.body,
-    color: colors.textMuted,
-  },
-
   errorScreen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  errorIcon: {
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.dangerLight,
-  },
-
-  errorTitle: {
-    marginTop: spacing.lg,
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  errorMessage: {
-    maxWidth: 420,
-    marginTop: spacing.xs,
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
-  },
-
-  retryButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    minHeight: 44,
-    marginTop: spacing.xl,
-    paddingHorizontal: spacing.lg,
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.primary,
-  },
-
-  retryText: {
-    ...typography.button,
-    color: colors.white,
-  },
-
-  pressed: {
-    opacity: 0.8,
+    paddingHorizontal: PAGE_PADDING,
   },
 
   refreshError: {

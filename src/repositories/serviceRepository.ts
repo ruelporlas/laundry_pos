@@ -1,4 +1,5 @@
 import { getDatabase } from "@/database";
+import { doAction } from "@/hooks/actions";
 import type {
   CreateServiceInput,
   Service,
@@ -48,9 +49,7 @@ export async function getServices(): Promise<Service[]> {
   return rows.map(mapService);
 }
 
-export async function getServiceById(
-  id: number,
-): Promise<Service | null> {
+export async function getServiceById(id: number): Promise<Service | null> {
   const db = await getDatabase();
 
   const row = await db.getFirstAsync<ServiceRow>(
@@ -98,15 +97,15 @@ export async function createService(
     now,
   );
 
-  const service = await getServiceById(
-    result.lastInsertRowId,
-  );
+  const service = await getServiceById(result.lastInsertRowId);
 
   if (!service) {
-    throw new Error(
-      "Service was created but could not be retrieved.",
-    );
+    throw new Error("Service was created but could not be retrieved.");
   }
+
+  await doAction("service.created", {
+    service,
+  });
 
   return service;
 }
@@ -116,6 +115,45 @@ export async function updateService(
   input: UpdateServiceInput,
 ): Promise<Service> {
   const db = await getDatabase();
+
+  const existingService = await getServiceById(id);
+
+  if (!existingService) {
+    throw new Error("Service could not be found.");
+  }
+
+  const updatedName = input.name.trim();
+  const updatedDescription = input.description?.trim() ?? "";
+  const updatedPrice = input.price;
+
+  const changes: Record<
+    string,
+    {
+      from: unknown;
+      to: unknown;
+    }
+  > = {};
+
+  if (existingService.name !== updatedName) {
+    changes.name = {
+      from: existingService.name,
+      to: updatedName,
+    };
+  }
+
+  if (existingService.description !== updatedDescription) {
+    changes.description = {
+      from: existingService.description,
+      to: updatedDescription,
+    };
+  }
+
+  if (existingService.price !== updatedPrice) {
+    changes.price = {
+      from: existingService.price,
+      to: updatedPrice,
+    };
+  }
 
   const now = new Date().toISOString();
 
@@ -129,9 +167,9 @@ export async function updateService(
         updated_at = ?
       WHERE id = ?;
     `,
-    input.name.trim(),
-    input.description?.trim() ?? "",
-    input.price,
+    updatedName,
+    updatedDescription,
+    updatedPrice,
     now,
     id,
   );
@@ -139,9 +177,14 @@ export async function updateService(
   const service = await getServiceById(id);
 
   if (!service) {
-    throw new Error(
-      "Service could not be found after update.",
-    );
+    throw new Error("Service could not be found after update.");
+  }
+
+  if (Object.keys(changes).length > 0) {
+    await doAction("service.updated", {
+      service,
+      changes,
+    });
   }
 
   return service;
@@ -152,6 +195,16 @@ export async function setServiceActive(
   isActive: boolean,
 ): Promise<Service> {
   const db = await getDatabase();
+
+  const existingService = await getServiceById(id);
+
+  if (!existingService) {
+    throw new Error("Service could not be found.");
+  }
+
+  if (existingService.isActive === isActive) {
+    return existingService;
+  }
 
   const now = new Date().toISOString();
 
@@ -171,9 +224,17 @@ export async function setServiceActive(
   const service = await getServiceById(id);
 
   if (!service) {
-    throw new Error(
-      "Service could not be found after status update.",
-    );
+    throw new Error("Service could not be found after status update.");
+  }
+
+  if (isActive) {
+    await doAction("service.activated", {
+      service,
+    });
+  } else {
+    await doAction("service.deactivated", {
+      service,
+    });
   }
 
   return service;

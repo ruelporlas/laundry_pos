@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,20 +12,22 @@ import {
 } from "react-native";
 
 import { AppButton } from "@/components/ui/AppButton";
-import { AppInput } from "@/components/ui/AppInput";
 import { AppCard } from "@/components/ui/AppCard";
+import { AppInput } from "@/components/ui/AppInput";
+import { PageHero } from "@/components/ui/PageHero";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 import { createService } from "@/repositories/serviceRepository";
 
 export default function AddServiceScreen() {
   const { width } = useWindowDimensions();
 
   const isTablet = width >= 768;
-  const horizontalPadding = isTablet ? spacing["2xl"] : spacing.lg;
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -110,91 +111,37 @@ export default function AddServiceScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            {
-              paddingHorizontal: horizontalPadding,
-            },
-          ]}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View
-            style={[
-              styles.hero,
-              {
-                marginHorizontal: -horizontalPadding,
-                paddingHorizontal: horizontalPadding,
-              },
-            ]}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              onPress={handleBackToServices}
-              style={({ pressed }) => [
-                styles.backButton,
-                pressed && styles.backButtonPressed,
-              ]}
-            >
-              <Ionicons name="arrow-back" size={21} color={colors.text} />
-            </Pressable>
+          <PageHero
+            icon="construct-outline"
+            title="Add Service"
+            subtitle="Create a new laundry service"
+            onBack={handleBackToServices}
+            disabled={saving}
+          />
 
-            <View style={styles.heroIcon}>
-              <Ionicons
-                name="construct-outline"
-                size={24}
-                color={colors.primary}
-              />
-            </View>
-
-            <Text style={styles.heroTitle}>Add Service</Text>
-
-            <Text style={styles.heroSubtitle}>
-              Create a new laundry service
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.content,
-              {
-                maxWidth: isTablet ? 720 : 600,
-              },
-            ]}
-          >
+          <View style={[styles.content, isTablet && styles.contentTablet]}>
             <AppCard padding={spacing.xl}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionIcon}>
-                  <Ionicons
-                    name="information-circle-outline"
-                    size={20}
-                    color={colors.primary}
-                  />
-                </View>
+              <SectionHeader
+                icon="information-circle-outline"
+                title="Service Information"
+                subtitle="Add the service name, description, and selling price."
+              />
 
-                <View style={styles.sectionHeaderText}>
-                  <Text style={styles.sectionTitle}>Service Information</Text>
-
-                  <Text style={styles.sectionSubtitle}>
-                    Add the service name, description, and selling price.
-                  </Text>
-                </View>
-              </View>
-
-              {error && (
+              {error ? (
                 <View style={styles.errorBanner}>
-                  <View style={styles.errorIcon}>
-                    <Ionicons
-                      name="warning-outline"
-                      size={18}
-                      color={colors.danger}
-                    />
-                  </View>
+                  <Ionicons
+                    name="warning-outline"
+                    size={18}
+                    color={colors.danger}
+                  />
 
                   <Text style={styles.errorText}>{error}</Text>
                 </View>
-              )}
+              ) : null}
 
               <View style={styles.form}>
                 <AppInput
@@ -212,6 +159,7 @@ export default function AddServiceScreen() {
                   autoCorrect={false}
                   required
                   error={nameError}
+                  editable={!saving}
                 />
 
                 <AppInput
@@ -224,6 +172,7 @@ export default function AddServiceScreen() {
                   numberOfLines={3}
                   textAlignVertical="top"
                   style={styles.descriptionInput}
+                  editable={!saving}
                 />
 
                 <AppInput
@@ -240,6 +189,7 @@ export default function AddServiceScreen() {
                   keyboardType="decimal-pad"
                   required
                   error={priceError}
+                  editable={!saving}
                 />
               </View>
 
@@ -270,6 +220,7 @@ export default function AddServiceScreen() {
                 icon="checkmark"
                 onPress={handleSave}
                 loading={saving}
+                disabled={saving}
                 fullWidth={!isTablet}
               />
             </View>
@@ -291,124 +242,39 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    flexGrow: 1,
     paddingBottom: spacing["5xl"],
-  },
-
-  hero: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  backButton: {
-    position: "absolute",
-    left: 16,
-    top: 18,
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-  },
-
-  backButtonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.96 }],
-  },
-
-  heroIcon: {
-    width: 48,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-  },
-
-  heroTitle: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  heroSubtitle: {
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
   },
 
   content: {
     width: "100%",
     alignSelf: "center",
+    paddingHorizontal: PAGE_PADDING,
     paddingTop: spacing.xl,
   },
 
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.xl,
-  },
-
-  sectionIcon: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.md,
-    backgroundColor: colors.primaryLight,
-  },
-
-  sectionHeaderText: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
-
-  sectionSubtitle: {
-    marginTop: 3,
-    ...typography.small,
-    color: colors.textMuted,
+  contentTablet: {
+    maxWidth: 720,
   },
 
   errorBanner: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.lg,
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginTop: spacing.xl,
     padding: spacing.md,
     borderRadius: theme.radius.md,
     backgroundColor: colors.dangerLight,
   },
 
-  errorIcon: {
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.surface,
-  },
-
   errorText: {
     flex: 1,
-    marginLeft: spacing.sm,
     ...typography.small,
     color: colors.danger,
   },
 
   form: {
     gap: spacing.lg,
+    marginTop: spacing.xl,
   },
 
   descriptionInput: {

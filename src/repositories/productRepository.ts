@@ -5,6 +5,8 @@ import type {
   UpdateProductInput,
 } from "@/models/product";
 
+import { doAction } from "@/hooks/actions";
+
 type ProductRow = {
   id: number;
   name: string;
@@ -48,9 +50,7 @@ export async function getProducts(): Promise<Product[]> {
   return rows.map(mapProduct);
 }
 
-export async function getProductById(
-  id: number,
-): Promise<Product | null> {
+export async function getProductById(id: number): Promise<Product | null> {
   const db = await getDatabase();
 
   const row = await db.getFirstAsync<ProductRow>(
@@ -101,10 +101,12 @@ export async function createProduct(
   const product = await getProductById(result.lastInsertRowId);
 
   if (!product) {
-    throw new Error(
-      "Product was created but could not be retrieved.",
-    );
+    throw new Error("Product was created but could not be retrieved.");
   }
+
+  await doAction("product.created", {
+    product,
+  });
 
   return product;
 }
@@ -114,6 +116,45 @@ export async function updateProduct(
   input: UpdateProductInput,
 ): Promise<Product> {
   const db = await getDatabase();
+
+  const existingProduct = await getProductById(id);
+
+  if (!existingProduct) {
+    throw new Error("Product could not be found.");
+  }
+
+  const updatedName = input.name.trim();
+  const updatedDescription = input.description?.trim() ?? "";
+  const updatedPrice = input.price;
+
+  const changes: Record<
+    string,
+    {
+      from: unknown;
+      to: unknown;
+    }
+  > = {};
+
+  if (existingProduct.name !== updatedName) {
+    changes.name = {
+      from: existingProduct.name,
+      to: updatedName,
+    };
+  }
+
+  if (existingProduct.description !== updatedDescription) {
+    changes.description = {
+      from: existingProduct.description,
+      to: updatedDescription,
+    };
+  }
+
+  if (existingProduct.price !== updatedPrice) {
+    changes.price = {
+      from: existingProduct.price,
+      to: updatedPrice,
+    };
+  }
 
   const now = new Date().toISOString();
 
@@ -127,9 +168,9 @@ export async function updateProduct(
         updated_at = ?
       WHERE id = ?;
     `,
-    input.name.trim(),
-    input.description?.trim() ?? "",
-    input.price,
+    updatedName,
+    updatedDescription,
+    updatedPrice,
     now,
     id,
   );
@@ -137,9 +178,14 @@ export async function updateProduct(
   const product = await getProductById(id);
 
   if (!product) {
-    throw new Error(
-      "Product could not be found after update.",
-    );
+    throw new Error("Product could not be found after update.");
+  }
+
+  if (Object.keys(changes).length > 0) {
+    await doAction("product.updated", {
+      product,
+      changes,
+    });
   }
 
   return product;
@@ -150,6 +196,16 @@ export async function setProductActive(
   isActive: boolean,
 ): Promise<Product> {
   const db = await getDatabase();
+
+  const existingProduct = await getProductById(id);
+
+  if (!existingProduct) {
+    throw new Error("Product could not be found.");
+  }
+
+  if (existingProduct.isActive === isActive) {
+    return existingProduct;
+  }
 
   const now = new Date().toISOString();
 
@@ -169,9 +225,17 @@ export async function setProductActive(
   const product = await getProductById(id);
 
   if (!product) {
-    throw new Error(
-      "Product could not be found after status update.",
-    );
+    throw new Error("Product could not be found after status update.");
+  }
+
+  if (isActive) {
+    await doAction("product.activated", {
+      product,
+    });
+  } else {
+    await doAction("product.deactivated", {
+      product,
+    });
   }
 
   return product;

@@ -1,13 +1,20 @@
-import bcrypt from "bcryptjs";
+import * as bcrypt from "bcryptjs";
+import * as Crypto from "expo-crypto";
 
 const SALT_ROUNDS = 10;
 
+bcrypt.setRandomFallback((length: number) => {
+  return Array.from(Crypto.getRandomBytes(length));
+});
+
 export async function hashPassword(password: string): Promise<string> {
-  if (!password.trim()) {
+  const cleanPassword = String(password);
+
+  if (!cleanPassword.trim()) {
     throw new Error("Password is required.");
   }
 
-  return bcrypt.hash(password, SALT_ROUNDS);
+  return bcrypt.hash(cleanPassword, SALT_ROUNDS);
 }
 
 export async function verifyPassword(
@@ -18,5 +25,5 @@ export async function verifyPassword(
     return false;
   }
 
-  return bcrypt.compare(password, passwordHash);
+  return bcrypt.compare(String(password), String(passwordHash));
 }

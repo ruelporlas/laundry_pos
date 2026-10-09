@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,11 +14,13 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { AppInput } from "@/components/ui/AppInput";
+import { PageHero } from "@/components/ui/PageHero";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 import { createProduct } from "@/repositories/productRepository";
 
 export default function AddProductScreen() {
@@ -36,6 +37,10 @@ export default function AddProductScreen() {
 
   const [nameError, setNameError] = useState("");
   const [priceError, setPriceError] = useState("");
+
+  const handleBackToProducts = () => {
+    router.replace("/products");
+  };
 
   const handleSave = async () => {
     let hasError = false;
@@ -98,30 +103,16 @@ export default function AddProductScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          <View style={styles.hero}>
-            <Pressable
-              onPress={() => router.replace("/products")}
-              disabled={saving}
-              style={({ pressed }) => [
-                styles.backButton,
-                pressed && styles.pressed,
-                saving && styles.disabled,
-              ]}
-            >
-              <Ionicons name="arrow-back" size={22} color={colors.text} />
-            </Pressable>
-
-            <View style={styles.heroIcon}>
-              <Ionicons name="cube-outline" size={30} color={colors.primary} />
-            </View>
-
-            <Text style={styles.title}>Add Product</Text>
-
-            <Text style={styles.subtitle}>Create a new product</Text>
-          </View>
+          <PageHero
+            icon="cube-outline"
+            title="Add Product"
+            subtitle="Create a new product"
+            onBack={handleBackToProducts}
+            disabled={saving}
+          />
 
           <View style={[styles.content, isTablet && styles.contentTablet]}>
-            {error && (
+            {error ? (
               <View style={styles.errorBanner}>
                 <Ionicons
                   name="warning-outline"
@@ -131,7 +122,7 @@ export default function AddProductScreen() {
 
                 <Text style={styles.errorText}>{error}</Text>
               </View>
-            )}
+            ) : null}
 
             <AppCard style={styles.formCard}>
               <View style={styles.formHeader}>
@@ -168,6 +159,7 @@ export default function AddProductScreen() {
                   autoCorrect={false}
                   required
                   error={nameError}
+                  editable={!saving}
                 />
 
                 <AppInput
@@ -180,6 +172,7 @@ export default function AddProductScreen() {
                   numberOfLines={3}
                   textAlignVertical="top"
                   style={styles.descriptionInput}
+                  editable={!saving}
                 />
 
                 <AppInput
@@ -196,6 +189,7 @@ export default function AddProductScreen() {
                   keyboardType="decimal-pad"
                   required
                   error={priceError}
+                  editable={!saving}
                 />
               </View>
 
@@ -216,7 +210,7 @@ export default function AddProductScreen() {
               <AppButton
                 title="Cancel"
                 variant="secondary"
-                onPress={() => router.replace("/products")}
+                onPress={handleBackToProducts}
                 disabled={saving}
                 fullWidth={!isTablet}
               />
@@ -226,6 +220,7 @@ export default function AddProductScreen() {
                 icon="checkmark"
                 onPress={handleSave}
                 loading={saving}
+                disabled={saving}
                 fullWidth={!isTablet}
               />
             </View>
@@ -250,56 +245,9 @@ const styles = StyleSheet.create({
     paddingBottom: spacing["5xl"],
   },
 
-  hero: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    paddingHorizontal: spacing["2xl"],
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  backButton: {
-    position: "absolute",
-    top: 52,
-    left: spacing.lg,
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  title: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  subtitle: {
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
   content: {
     width: "100%",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: PAGE_PADDING,
     paddingTop: spacing.xl,
     gap: spacing.lg,
   },
@@ -307,7 +255,6 @@ const styles = StyleSheet.create({
   contentTablet: {
     maxWidth: 720,
     alignSelf: "center",
-    paddingHorizontal: 0,
   },
 
   formCard: {
@@ -389,13 +336,5 @@ const styles = StyleSheet.create({
     flex: 1,
     ...typography.small,
     color: colors.danger,
-  },
-
-  pressed: {
-    opacity: 0.8,
-  },
-
-  disabled: {
-    opacity: 0.5,
   },
 });

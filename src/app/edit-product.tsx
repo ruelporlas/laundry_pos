@@ -2,10 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,11 +14,15 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { AppInput } from "@/components/ui/AppInput";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 import type { Product } from "@/models/product";
 import {
   getProductById,
@@ -88,6 +90,20 @@ export default function EditProductScreen() {
     loadProduct();
   }, [id]);
 
+  const handleBackToDetails = () => {
+    if (!product) {
+      router.replace("/products");
+      return;
+    }
+
+    router.replace({
+      pathname: "/product-details",
+      params: {
+        id: product.id.toString(),
+      },
+    });
+  };
+
   const handleSave = async () => {
     if (!product) {
       return;
@@ -147,48 +163,17 @@ export default function EditProductScreen() {
     }
   };
 
-  const handleBack = () => {
-    if (!product) {
-      router.replace("/products");
-      return;
-    }
-
-    router.replace({
-      pathname: "/product-details",
-      params: {
-        id: product.id.toString(),
-      },
-    });
-  };
-
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.hero}>
-          <Pressable
-            onPress={() => router.replace("/products")}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
-          </Pressable>
+        <PageHero
+          icon="create-outline"
+          title="Edit Product"
+          subtitle="Update product information"
+          onBack={() => router.replace("/products")}
+        />
 
-          <View style={styles.heroIcon}>
-            <Ionicons name="create-outline" size={28} color={colors.primary} />
-          </View>
-
-          <Text style={styles.title}>Edit Product</Text>
-
-          <Text style={styles.subtitle}>Update product information</Text>
-        </View>
-
-        <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={colors.primary} />
-
-          <Text style={styles.loadingText}>Loading product...</Text>
-        </View>
+        <LoadingState message="Loading product..." />
       </View>
     );
   }
@@ -196,40 +181,18 @@ export default function EditProductScreen() {
   if (!product) {
     return (
       <View style={styles.container}>
-        <View style={styles.hero}>
-          <Pressable
-            onPress={() => router.replace("/products")}
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.text} />
-          </Pressable>
+        <PageHero
+          icon="create-outline"
+          title="Edit Product"
+          subtitle="Product information"
+          onBack={() => router.replace("/products")}
+        />
 
-          <View style={styles.heroIcon}>
-            <Ionicons name="create-outline" size={28} color={colors.primary} />
-          </View>
-
-          <Text style={styles.title}>Edit Product</Text>
-
-          <Text style={styles.subtitle}>Product information</Text>
-        </View>
-
-        <View style={styles.centerState}>
-          <View style={styles.errorIcon}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={32}
-              color={colors.danger}
-            />
-          </View>
-
-          <Text style={styles.errorTitle}>Unable to edit product</Text>
-
-          <Text style={styles.errorMessage}>
-            {error || "Product could not be found."}
-          </Text>
+        <View style={styles.errorScreen}>
+          <ErrorState
+            title="Unable to edit product"
+            message={error || "Product could not be found."}
+          />
 
           <AppButton
             title="Back to Products"
@@ -252,36 +215,16 @@ export default function EditProductScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          <View style={styles.hero}>
-            <Pressable
-              onPress={handleBack}
-              disabled={saving}
-              style={({ pressed }) => [
-                styles.backButton,
-                pressed && styles.pressed,
-                saving && styles.disabled,
-              ]}
-            >
-              <Ionicons name="arrow-back" size={22} color={colors.text} />
-            </Pressable>
-
-            <View style={styles.heroIcon}>
-              <Ionicons
-                name="create-outline"
-                size={28}
-                color={colors.primary}
-              />
-            </View>
-
-            <Text style={styles.title}>Edit Product</Text>
-
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {product.name}
-            </Text>
-          </View>
+          <PageHero
+            icon="create-outline"
+            title="Edit Product"
+            subtitle={product.name}
+            onBack={handleBackToDetails}
+            disabled={saving}
+          />
 
           <View style={[styles.content, isTablet && styles.contentTablet]}>
-            {error && (
+            {error ? (
               <View style={styles.errorBanner}>
                 <Ionicons
                   name="warning-outline"
@@ -291,7 +234,7 @@ export default function EditProductScreen() {
 
                 <Text style={styles.errorText}>{error}</Text>
               </View>
-            )}
+            ) : null}
 
             <AppCard style={styles.formCard}>
               <View style={styles.formHeader}>
@@ -328,6 +271,7 @@ export default function EditProductScreen() {
                   autoCorrect={false}
                   required
                   error={nameError}
+                  editable={!saving}
                 />
 
                 <AppInput
@@ -340,6 +284,7 @@ export default function EditProductScreen() {
                   numberOfLines={3}
                   textAlignVertical="top"
                   style={styles.descriptionInput}
+                  editable={!saving}
                 />
 
                 <AppInput
@@ -356,6 +301,7 @@ export default function EditProductScreen() {
                   keyboardType="decimal-pad"
                   required
                   error={priceError}
+                  editable={!saving}
                 />
               </View>
 
@@ -376,7 +322,7 @@ export default function EditProductScreen() {
               <AppButton
                 title="Cancel"
                 variant="secondary"
-                onPress={handleBack}
+                onPress={handleBackToDetails}
                 disabled={saving}
                 fullWidth={!isTablet}
               />
@@ -386,6 +332,7 @@ export default function EditProductScreen() {
                 icon="checkmark"
                 onPress={handleSave}
                 loading={saving}
+                disabled={saving}
                 fullWidth={!isTablet}
               />
             </View>
@@ -410,57 +357,9 @@ const styles = StyleSheet.create({
     paddingBottom: spacing["5xl"],
   },
 
-  hero: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    paddingHorizontal: spacing["2xl"],
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  backButton: {
-    position: "absolute",
-    top: 52,
-    left: spacing.lg,
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  title: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  subtitle: {
-    maxWidth: "80%",
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
   content: {
     width: "100%",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: PAGE_PADDING,
     paddingTop: spacing.xl,
     gap: spacing.lg,
   },
@@ -468,7 +367,6 @@ const styles = StyleSheet.create({
   contentTablet: {
     maxWidth: 720,
     alignSelf: "center",
-    paddingHorizontal: 0,
   },
 
   formCard: {
@@ -552,49 +450,10 @@ const styles = StyleSheet.create({
     color: colors.danger,
   },
 
-  centerState: {
+  errorScreen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  loadingText: {
-    marginTop: spacing.md,
-    ...typography.body,
-    color: colors.textMuted,
-  },
-
-  errorIcon: {
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.dangerLight,
-  },
-
-  errorTitle: {
-    marginTop: spacing.lg,
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  errorMessage: {
-    maxWidth: 420,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xl,
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
-  },
-
-  pressed: {
-    opacity: 0.8,
-  },
-
-  disabled: {
-    opacity: 0.5,
+    paddingHorizontal: PAGE_PADDING,
   },
 });

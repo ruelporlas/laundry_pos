@@ -1,8 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -16,17 +15,20 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 import type { Bundle } from "@/models/bundle";
 import { getBundles } from "@/repositories/bundleRepository";
 
-const PAGE_PADDING = 16;
-const GRID_GAP = 16;
+const GRID_GAP = spacing.lg;
 const MAX_CONTENT_WIDTH = 1200;
 
 export default function BundlesScreen() {
@@ -35,7 +37,6 @@ export default function BundlesScreen() {
   const numColumns = width >= 1200 ? 4 : width >= 768 ? 3 : 2;
 
   const contentWidth = Math.min(width, MAX_CONTENT_WIDTH);
-
   const availableWidth = contentWidth - PAGE_PADDING * 2;
 
   const cardWidth = (availableWidth - GRID_GAP * (numColumns - 1)) / numColumns;
@@ -65,9 +66,11 @@ export default function BundlesScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadBundles();
-  }, [loadBundles]);
+  useFocusEffect(
+    useCallback(() => {
+      loadBundles();
+    }, [loadBundles]),
+  );
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -179,21 +182,11 @@ export default function BundlesScreen() {
         }
         ListHeaderComponent={
           <View style={styles.headerContent}>
-            <View style={styles.hero}>
-              <View style={styles.heroIcon}>
-                <Ionicons
-                  name="gift-outline"
-                  size={30}
-                  color={colors.primary}
-                />
-              </View>
-
-              <Text style={styles.heroTitle}>Bundles</Text>
-
-              <Text style={styles.heroSubtitle}>
-                Combine products and services into one convenient package
-              </Text>
-            </View>
+            <PageHero
+              icon="gift-outline"
+              title="Bundles"
+              subtitle="Combine products and services into one convenient package"
+            />
 
             <View style={styles.searchContainer}>
               <Ionicons
@@ -246,24 +239,10 @@ export default function BundlesScreen() {
         }
         ListEmptyComponent={
           loading ? (
-            <View style={styles.centerContent}>
-              <ActivityIndicator size="large" color={colors.primary} />
-
-              <Text style={styles.loadingText}>Loading bundles...</Text>
-            </View>
+            <LoadingState message="Loading bundles..." />
           ) : error ? (
-            <View style={styles.centerContent}>
-              <View style={styles.errorIcon}>
-                <Ionicons
-                  name="warning-outline"
-                  size={30}
-                  color={colors.danger}
-                />
-              </View>
-
-              <Text style={styles.errorTitle}>Unable to Load Bundles</Text>
-
-              <Text style={styles.errorMessage}>{error}</Text>
+            <View style={styles.errorContainer}>
+              <ErrorState title="Unable to load bundles" message={error} />
 
               <AppButton
                 title="Try Again"
@@ -298,7 +277,6 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: MAX_CONTENT_WIDTH,
     alignSelf: "center",
-    paddingHorizontal: PAGE_PADDING,
     paddingBottom: spacing["5xl"],
   },
 
@@ -307,45 +285,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
   },
 
-  hero: {
-    alignItems: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    marginHorizontal: -PAGE_PADDING,
-    paddingHorizontal: spacing["2xl"],
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  heroTitle: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  heroSubtitle: {
-    maxWidth: 420,
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
     minHeight: 48,
+    marginHorizontal: PAGE_PADDING,
     marginTop: spacing.lg,
     paddingHorizontal: spacing.md,
     borderWidth: 1,
@@ -371,6 +315,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginHorizontal: PAGE_PADDING,
     marginTop: spacing.lg,
   },
 
@@ -391,6 +336,7 @@ const styles = StyleSheet.create({
 
   columnWrapper: {
     justifyContent: "space-between",
+    marginHorizontal: PAGE_PADDING,
     marginBottom: GRID_GAP,
   },
 
@@ -457,41 +403,8 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 
-  centerContent: {
-    minHeight: 300,
+  errorContainer: {
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  loadingText: {
-    marginTop: spacing.md,
-    ...typography.body,
-    color: colors.textMuted,
-  },
-
-  errorIcon: {
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.dangerLight,
-  },
-
-  errorTitle: {
-    marginTop: spacing.lg,
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  errorMessage: {
-    maxWidth: 360,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xl,
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
+    paddingHorizontal: PAGE_PADDING,
   },
 });

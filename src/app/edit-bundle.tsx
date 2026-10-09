@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,16 +9,20 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { useCallback, useEffect, useState } from "react";
 
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { AppInput } from "@/components/ui/AppInput";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 
 import type { Bundle, BundleItemType } from "@/models/bundle";
 import type { Product } from "@/models/product";
@@ -122,7 +126,6 @@ export default function EditBundleScreen() {
       ]);
 
       setProducts(productResults.filter((product) => product.isActive));
-
       setServices(serviceResults.filter((service) => service.isActive));
     } catch (catalogError) {
       console.error("Failed to load catalog:", catalogError);
@@ -140,7 +143,10 @@ export default function EditBundleScreen() {
     loadCatalog();
   }, [loadBundle, loadCatalog]);
 
-  const isItemSelected = (itemType: BundleItemType, itemId: number) => {
+  const isItemSelected = (
+    itemType: BundleItemType,
+    itemId: number,
+  ): boolean => {
     return selectedItems.some(
       (item) => item.itemType === itemType && item.itemId === itemId,
     );
@@ -210,9 +216,7 @@ export default function EditBundleScreen() {
     setError("");
 
     const trimmedName = name.trim();
-
     const trimmedDescription = description.trim();
-
     const trimmedPrice = price.trim();
 
     if (!trimmedName) {
@@ -267,39 +271,21 @@ export default function EditBundleScreen() {
     }
   };
 
-  const renderHero = () => (
-    <View style={styles.hero}>
-      <Pressable
-        onPress={() => router.replace(`/bundle-details?id=${bundle?.id ?? id}`)}
-        style={styles.backButton}
-        accessibilityRole="button"
-        accessibilityLabel="Back to bundle details"
-      >
-        <Ionicons name="arrow-back" size={22} color={colors.text} />
-      </Pressable>
-
-      <View style={styles.heroIcon}>
-        <Ionicons name="create-outline" size={30} color={colors.primary} />
-      </View>
-
-      <Text style={styles.heroTitle}>Edit Bundle</Text>
-
-      <Text style={styles.heroSubtitle} numberOfLines={1}>
-        {bundle?.name || "Update bundle information"}
-      </Text>
-    </View>
-  );
+  const handleBackToDetails = () => {
+    router.replace(`/bundle-details?id=${bundle?.id ?? id}`);
+  };
 
   if (loading) {
     return (
       <View style={styles.container}>
-        {renderHero()}
+        <PageHero
+          icon="create-outline"
+          title="Edit Bundle"
+          subtitle={bundle?.name || "Update bundle information"}
+          onBack={handleBackToDetails}
+        />
 
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-
-          <Text style={styles.loadingText}>Loading bundle...</Text>
-        </View>
+        <LoadingState message="Loading bundle..." />
       </View>
     );
   }
@@ -307,23 +293,19 @@ export default function EditBundleScreen() {
   if (!bundle) {
     return (
       <View style={styles.container}>
-        {renderHero()}
+        <PageHero
+          icon="create-outline"
+          title="Edit Bundle"
+          subtitle="Update bundle information"
+          onBack={handleBackToDetails}
+        />
 
-        <View style={styles.centerContainer}>
-          <View style={styles.errorIcon}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={32}
-              color={colors.danger}
-            />
-          </View>
+        <ErrorState
+          title="Unable to Load Bundle"
+          message={error || "The requested bundle could not be found."}
+        />
 
-          <Text style={styles.errorTitle}>Unable to Load Bundle</Text>
-
-          <Text style={styles.errorMessage}>
-            {error || "The requested bundle could not be found."}
-          </Text>
-
+        <View style={styles.retryButton}>
           <AppButton
             title="Try Again"
             icon="refresh-outline"
@@ -336,7 +318,13 @@ export default function EditBundleScreen() {
 
   return (
     <View style={styles.container}>
-      {renderHero()}
+      <PageHero
+        icon="create-outline"
+        title="Edit Bundle"
+        subtitle={bundle.name}
+        onBack={handleBackToDetails}
+        disabled={saving}
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -347,7 +335,7 @@ export default function EditBundleScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {error && (
+        {error ? (
           <View style={styles.errorBanner}>
             <Ionicons
               name="alert-circle-outline"
@@ -357,22 +345,14 @@ export default function EditBundleScreen() {
 
             <Text style={styles.errorBannerText}>{error}</Text>
           </View>
-        )}
+        ) : null}
 
         <AppCard style={styles.formCard}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderIcon}>
-              <Ionicons name="gift-outline" size={22} color={colors.primary} />
-            </View>
-
-            <View style={styles.cardHeaderText}>
-              <Text style={styles.cardTitle}>Bundle Information</Text>
-
-              <Text style={styles.cardSubtitle}>
-                Update the basic details of this bundle
-              </Text>
-            </View>
-          </View>
+          <SectionHeader
+            icon="gift-outline"
+            title="Bundle Information"
+            subtitle="Update the basic details of this bundle"
+          />
 
           <View style={styles.fieldSpacing} />
 
@@ -440,7 +420,9 @@ export default function EditBundleScreen() {
             </View>
           </View>
 
-          {itemsError && <Text style={styles.fieldError}>{itemsError}</Text>}
+          {itemsError ? (
+            <Text style={styles.fieldError}>{itemsError}</Text>
+          ) : null}
 
           {selectedItems.length > 0 ? (
             <View style={styles.selectedItems}>
@@ -770,54 +752,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
 
-  hero: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    paddingHorizontal: spacing["2xl"],
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  backButton: {
-    position: "absolute",
-    left: spacing.lg,
-    bottom: 22,
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  heroIcon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  heroTitle: {
-    marginTop: spacing.md,
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  heroSubtitle: {
-    maxWidth: 420,
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-
   scrollView: {
     flex: 1,
   },
@@ -826,51 +760,19 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 720,
     alignSelf: "center",
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: PAGE_PADDING,
     paddingTop: spacing.xl,
     paddingBottom: spacing["5xl"],
   },
 
   contentContainerTablet: {
-    paddingHorizontal: spacing["2xl"],
+    paddingHorizontal: PAGE_PADDING,
   },
 
-  centerContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  loadingText: {
-    marginTop: spacing.md,
-    ...typography.body,
-    color: colors.textMuted,
-  },
-
-  errorIcon: {
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.dangerLight,
-  },
-
-  errorTitle: {
+  retryButton: {
+    alignSelf: "center",
+    paddingHorizontal: PAGE_PADDING,
     marginTop: spacing.lg,
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  errorMessage: {
-    maxWidth: 360,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xl,
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
   },
 
   errorBanner: {
@@ -891,36 +793,6 @@ const styles = StyleSheet.create({
 
   formCard: {
     marginBottom: spacing.lg,
-  },
-
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  cardHeaderIcon: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.md,
-    backgroundColor: colors.primaryLight,
-  },
-
-  cardHeaderText: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-
-  cardTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
-
-  cardSubtitle: {
-    marginTop: 3,
-    ...typography.small,
-    color: colors.textMuted,
   },
 
   fieldSpacing: {
@@ -951,6 +823,17 @@ const styles = StyleSheet.create({
 
   sectionHeaderText: {
     flex: 1,
+  },
+
+  cardTitle: {
+    ...typography.h3,
+    color: colors.text,
+  },
+
+  cardSubtitle: {
+    marginTop: 3,
+    ...typography.small,
+    color: colors.textMuted,
   },
 
   itemCountBadge: {

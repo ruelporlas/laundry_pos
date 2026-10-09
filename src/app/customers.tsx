@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -16,25 +15,30 @@ import {
 import { AppButton } from "@/components/ui/AppButton";
 import { AppCard } from "@/components/ui/AppCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { PageHero } from "@/components/ui/PageHero";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 
 import { colors } from "@/constants/colors";
+import { PAGE_PADDING } from "@/constants/layout";
 import { spacing } from "@/constants/spacing";
-import { typography } from "@/constants/typography";
 import { theme } from "@/constants/theme";
+import { typography } from "@/constants/typography";
 import type { Customer } from "@/models/customer";
 import { getCustomers } from "@/repositories/customerRepository";
 
-const GRID_GAP = 16;
+const GRID_GAP = spacing.lg;
+const MAX_CONTENT_WIDTH = 1200;
 
 export default function CustomersScreen() {
   const { width } = useWindowDimensions();
 
   const isTablet = width >= 768;
-  const contentWidth = Math.min(width, 1200);
-  const horizontalPadding = isTablet ? spacing["2xl"] : spacing.lg;
+  const contentWidth = Math.min(width, MAX_CONTENT_WIDTH);
 
-  const availableWidth = contentWidth - horizontalPadding * 2;
+  const availableWidth = contentWidth - PAGE_PADDING * 2;
 
   const cardWidth = isTablet
     ? Math.max(0, (availableWidth - GRID_GAP) / 2)
@@ -159,18 +163,12 @@ export default function CustomersScreen() {
 
   const renderListHeader = () => (
     <View style={styles.headerContent}>
-      <View
-        style={[
-          styles.headerHero,
-          {
-            marginHorizontal: -horizontalPadding,
-            paddingHorizontal: horizontalPadding,
-          },
-        ]}
-      >
-        <Text style={styles.title}>Customers</Text>
-
-        <Text style={styles.subtitle}>Manage your laundry customers</Text>
+      <View style={styles.heroWrapper}>
+        <PageHero
+          icon="people-outline"
+          title="Customers"
+          subtitle="Manage your laundry customers"
+        />
       </View>
 
       <View style={styles.controls}>
@@ -196,20 +194,22 @@ export default function CustomersScreen() {
           )}
         </View>
 
-        <View style={styles.actionRow}>
-          <View style={styles.sectionInfo}>
-            <Text style={styles.sectionTitle}>Your customers</Text>
-
-            <Text style={styles.sectionSubtitle}>
-              {filteredCustomers.length}{" "}
-              {filteredCustomers.length === 1 ? "customer" : "customers"}
-            </Text>
+        <View style={[styles.actionRow, !isTablet && styles.actionRowMobile]}>
+          <View style={styles.sectionHeaderWrapper}>
+            <SectionHeader
+              icon="people-outline"
+              title="Your customers"
+              subtitle={`${filteredCustomers.length} ${
+                filteredCustomers.length === 1 ? "customer" : "customers"
+              }`}
+            />
           </View>
 
           <AppButton
             title="Add Customer"
             icon="add"
             onPress={() => router.push("/add-customer")}
+            fullWidth={!isTablet}
           />
         </View>
       </View>
@@ -219,11 +219,7 @@ export default function CustomersScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-
-          <Text style={styles.loadingText}>Loading customers...</Text>
-        </View>
+        <LoadingState message="Loading customers..." />
       </View>
     );
   }
@@ -232,17 +228,7 @@ export default function CustomersScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.errorScreen}>
-          <View style={styles.errorIcon}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={32}
-              color={colors.danger}
-            />
-          </View>
-
-          <Text style={styles.errorTitle}>Unable to load customers</Text>
-
-          <Text style={styles.errorMessage}>{error}</Text>
+          <ErrorState title="Unable to load customers" message={error} />
 
           <Pressable
             onPress={loadCustomers}
@@ -281,12 +267,7 @@ export default function CustomersScreen() {
             }
           />
         }
-        contentContainerStyle={[
-          styles.list,
-          {
-            paddingHorizontal: horizontalPadding,
-          },
-        ]}
+        contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -326,8 +307,9 @@ const styles = StyleSheet.create({
 
   list: {
     width: "100%",
-    maxWidth: 1200,
+    maxWidth: MAX_CONTENT_WIDTH,
     alignSelf: "center",
+    paddingHorizontal: PAGE_PADDING,
     paddingBottom: spacing["4xl"],
   },
 
@@ -335,27 +317,8 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
 
-  headerHero: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 54,
-    paddingBottom: 20,
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
-    backgroundColor: colors.primaryLight,
-  },
-
-  title: {
-    ...typography.h2,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  subtitle: {
-    marginTop: spacing.xs,
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
+  heroWrapper: {
+    marginHorizontal: -PAGE_PADDING,
   },
 
   controls: {
@@ -403,22 +366,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: spacing.xl,
     marginBottom: spacing.md,
+    gap: spacing.md,
   },
 
-  sectionInfo: {
+  actionRowMobile: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
+
+  sectionHeaderWrapper: {
     flex: 1,
-    marginRight: spacing.md,
-  },
-
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-  },
-
-  sectionSubtitle: {
-    marginTop: 3,
-    ...typography.small,
-    color: colors.textMuted,
+    minWidth: 0,
   },
 
   columnWrapper: {
@@ -479,48 +437,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
 
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing["2xl"],
-  },
-
-  loadingText: {
-    marginTop: spacing.md,
-    ...typography.body,
-    color: colors.textMuted,
-  },
-
   errorScreen: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing["2xl"],
-  },
-
-  errorIcon: {
-    width: 64,
-    height: 64,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.dangerLight,
-  },
-
-  errorTitle: {
-    marginTop: spacing.lg,
-    ...typography.h3,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  errorMessage: {
-    maxWidth: 420,
-    marginTop: spacing.xs,
-    ...typography.body,
-    color: colors.textMuted,
-    textAlign: "center",
+    paddingHorizontal: PAGE_PADDING,
   },
 
   retryButton: {
@@ -529,7 +450,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
     minHeight: 44,
-    marginTop: spacing.xl,
+    marginTop: -spacing.md,
     paddingHorizontal: spacing.lg,
     borderRadius: theme.radius.full,
     backgroundColor: colors.primary,
@@ -550,7 +471,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    marginHorizontal: spacing.lg,
+    marginHorizontal: PAGE_PADDING,
     marginBottom: spacing.md,
     borderRadius: theme.radius.md,
     backgroundColor: colors.warningLight,
