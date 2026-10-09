@@ -34,7 +34,8 @@
         }
       ],
       "expo-sqlite",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "with-rn-bluetooth-classic"
     ],
     "experiments": {
       "typedRoutes": true,
