@@ -20,17 +20,17 @@ import type { PaymentMethod } from "@/models/jobOrder";
 import { getAppSettings } from "@/repositories/settingsRepository";
 import { printerService } from "@/services/printerService";
 import { getReceiptData } from "@/services/receiptService";
-import { getEscPosHexForJobOrder } from "@/utils/escPosDebug";
+import { formatReceiptToEscPos } from "@/utils/escPosFormatter";
 import {
   formatActivityChangeValue,
   formatFieldName,
   getActivityConfig,
   getRemovedItems,
 } from "@/utils/jobOrderActivity";
-import { formatReceipt } from "@/utils/receiptFormatter";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -164,35 +164,59 @@ export default function JobOrderCreatedScreen() {
       return;
     }
 
+    if (printerService.getConnectionState() !== "connected") {
+      Alert.alert(
+        "Printer not connected",
+        "Connect your XP-58-H thermal printer before printing the receipt.",
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+          {
+            text: "Set Up Printer",
+            onPress: () => {
+              router.push({
+                pathname: "/printer-settings",
+                params: {
+                  jobOrderId: String(jobOrder.id),
+                },
+              });
+            },
+          },
+        ],
+      );
+
+      return;
+    }
+
     try {
       const [receiptData, settings] = await Promise.all([
         getReceiptData(jobOrder.id),
         getAppSettings(),
       ]);
 
-      const receiptText = formatReceipt(
+      const receiptBytes = formatReceiptToEscPos(
         receiptData,
         settings.receiptPaperWidth,
       );
 
-      console.log(
-        `\n========== RECEIPT ${jobOrder.jobOrderNumber} ==========\n${receiptText}\n========== END RECEIPT ==========\n`,
+      await printerService.print(receiptBytes);
+
+      const printerName =
+        printerService.getConnectedDevice()?.name ?? "the printer";
+
+      Alert.alert(
+        "Receipt sent",
+        `The receipt data for ${jobOrder.jobOrderNumber} was sent to ${printerName}.`,
       );
-      const hex = await getEscPosHexForJobOrder(
-        jobOrder.id,
-        settings.receiptPaperWidth,
-      );
-      console.log(
-        "\n========== ESC/POS HEX JO-000022 ==========\n" +
-          hex +
-          "\n========== END ESC/POS HEX ==========\n",
-      );
-      console.log(
-        "Printer connection state:",
-        printerService.getConnectionState(),
-      );
-    } catch (error) {
-      console.error("Unable to prepare receipt:", error);
+    } catch (printError) {
+      const message =
+        printError instanceof Error
+          ? printError.message
+          : "An unexpected error occurred while printing.";
+
+      Alert.alert("Printing failed", message);
     }
   }
 

@@ -193,7 +193,7 @@ class BluetoothPrinterService implements PrinterService {
 
       if (!alreadyConnected) {
         const connected = await nativeDevice.connect({
-          CONNECTOR_TYPE: "rfcomm",
+          connectorType: "rfcomm",
           CONNECTION_TYPE: "delimited",
           DELIMITER: "",
           DEVICE_CHARSET: "ascii",
