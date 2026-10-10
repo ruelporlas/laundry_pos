@@ -38,7 +38,7 @@ export default function RootLayout() {
         }
 
         console.log(
-          "Database OK — version 13 — customers, products, services, bundles, bundle items, Job Orders, payments, users, expenses, audit logs, inventory, and app settings tables exist",
+          "Database OK — version 15 — customers, products, services, bundles, bundle items, Job Orders, payments, users, expenses, audit logs, inventory, app settings, and promotion cache tables exist",
         );
 
         registerActions();

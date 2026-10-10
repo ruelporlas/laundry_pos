@@ -4,7 +4,7 @@ type TableCheck = {
   name: string;
 };
 
-const EXPECTED_DATABASE_VERSION = 14;
+const EXPECTED_DATABASE_VERSION = 15;
 
 export async function checkDatabase(): Promise<boolean> {
   const db = await getDatabase();
@@ -37,6 +37,7 @@ export async function checkDatabase(): Promise<boolean> {
     "inventory_items",
     "inventory_movements",
     "app_settings",
+    "promotion_cache",
   ];
 
   for (const tableName of requiredTables) {

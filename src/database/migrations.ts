@@ -1,6 +1,7 @@
+import { hashPassword } from "../utils/password";
 import { getDatabase } from "./database";
 
-const DATABASE_VERSION = 14;
+const DATABASE_VERSION = 15;
 
 export async function runMigrations(): Promise<void> {
   const db = await getDatabase();
@@ -79,6 +80,10 @@ async function applyMigrations(
 
     if (currentVersion < 14) {
       await migrateToVersion14(db);
+    }
+
+    if (currentVersion < 15) {
+      await migrateToVersion15(db);
     }
 
     await db.execAsync(`
@@ -876,4 +881,41 @@ async function migrateToVersion14(
       updated_at TEXT NOT NULL
     );
   `);
+}
+
+async function migrateToVersion15(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+): Promise<void> {
+  const existingUser = await db.getFirstAsync<{ id: number }>(
+    "SELECT id FROM users LIMIT 1;",
+  );
+
+  if (existingUser) {
+    return;
+  }
+
+  const passwordHash = await hashPassword("default-adminpassword654321!");
+
+  const now = new Date().toISOString();
+
+  await db.runAsync(
+    `
+      INSERT INTO users (
+        full_name,
+        username,
+        password_hash,
+        role,
+        is_active,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, 1, ?, ?);
+    `,
+    "Default Administrator",
+    "default-admin",
+    passwordHash,
+    "admin",
+    now,
+    now,
+  );
 }
