@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { Tabs, usePathname, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,6 +18,13 @@ import { checkDatabase, runMigrations } from "@/database";
 import { registerActions } from "@/hooks/registerActions";
 
 import LoginScreen from "./login";
+
+const ADMIN_ONLY_ROUTES = new Set([
+  "/users",
+  "/add-user",
+  "/user-details",
+  "/edit-user",
+]);
 
 export default function RootLayout() {
   const [databaseReady, setDatabaseReady] = useState(false);
@@ -115,11 +123,20 @@ export default function RootLayout() {
 }
 
 function AuthenticatedApp() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
+  const isAdminOnlyRoute = ADMIN_ONLY_ROUTES.has(normalizedPathname);
 
   if (!isAuthenticated) {
     return <LoginScreen />;
+  }
+
+  if (isAdminOnlyRoute && !isAdmin) {
+    return <AccessDeniedScreen onReturn={() => router.replace("/")} />;
   }
 
   return (
@@ -151,9 +168,7 @@ function AuthenticatedApp() {
         },
       }}
     >
-      {/* =========================
-          MAIN BOTTOM TABS
-          ========================= */}
+      {/* MAIN BOTTOM TABS */}
 
       <Tabs.Screen
         name="index"
@@ -199,9 +214,7 @@ function AuthenticatedApp() {
         }}
       />
 
-      {/* =========================
-          HIDDEN MANAGEMENT ROUTES
-          ========================= */}
+      {/* HIDDEN MANAGEMENT ROUTES */}
 
       <Tabs.Screen
         name="products"
@@ -250,9 +263,7 @@ function AuthenticatedApp() {
         }}
       />
 
-      {/* =========================
-          CUSTOMER ROUTES
-          ========================= */}
+      {/* CUSTOMER ROUTES */}
 
       <Tabs.Screen
         name="add-customer"
@@ -278,9 +289,7 @@ function AuthenticatedApp() {
         }}
       />
 
-      {/* =========================
-          PRODUCT ROUTES
-          ========================= */}
+      {/* PRODUCT ROUTES */}
 
       <Tabs.Screen
         name="add-product"
@@ -306,9 +315,7 @@ function AuthenticatedApp() {
         }}
       />
 
-      {/* =========================
-          SERVICE ROUTES
-          ========================= */}
+      {/* SERVICE ROUTES */}
 
       <Tabs.Screen
         name="add-service"
@@ -334,9 +341,7 @@ function AuthenticatedApp() {
         }}
       />
 
-      {/* =========================
-          BUNDLE ROUTES
-          ========================= */}
+      {/* BUNDLE ROUTES */}
 
       <Tabs.Screen
         name="add-bundle"
@@ -362,9 +367,7 @@ function AuthenticatedApp() {
         }}
       />
 
-      {/* =========================
-          JOB ORDER ROUTES
-          ========================= */}
+      {/* JOB ORDER ROUTES */}
 
       <Tabs.Screen
         name="new-job-order"
@@ -390,9 +393,7 @@ function AuthenticatedApp() {
         }}
       />
 
-      {/* =========================
-          USER MANAGEMENT ROUTES
-          ========================= */}
+      {/* USER MANAGEMENT ROUTES */}
 
       <Tabs.Screen
         name="users"
@@ -426,9 +427,7 @@ function AuthenticatedApp() {
         }}
       />
 
-      {/* =========================
-          EXPENSE ROUTES
-          ========================= */}
+      {/* EXPENSE ROUTES */}
 
       <Tabs.Screen
         name="expenses"
@@ -462,9 +461,7 @@ function AuthenticatedApp() {
         }}
       />
 
-      {/* =========================
-          INVENTORY ROUTES
-          ========================= */}
+      {/* INVENTORY ROUTES */}
 
       <Tabs.Screen
         name="inventory"
@@ -522,9 +519,7 @@ function AuthenticatedApp() {
         }}
       />
 
-      {/* =========================
-          DEVELOPMENT / AUTH ROUTES
-          ========================= */}
+      {/* DEVELOPMENT / AUTH ROUTES */}
 
       <Tabs.Screen
         name="login"
@@ -534,6 +529,38 @@ function AuthenticatedApp() {
         }}
       />
     </Tabs>
+  );
+}
+
+function AccessDeniedScreen({ onReturn }: { onReturn: () => void }) {
+  return (
+    <View style={styles.accessDeniedContainer}>
+      <View style={styles.accessDeniedIcon}>
+        <Ionicons
+          name="shield-checkmark-outline"
+          size={36}
+          color={colors.danger}
+        />
+      </View>
+
+      <Text style={styles.accessDeniedTitle}>Access Denied</Text>
+
+      <Text style={styles.accessDeniedMessage}>
+        You do not have permission to manage user accounts. Please contact an
+        administrator if you need access.
+      </Text>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={onReturn}
+        style={({ pressed }) => [
+          styles.accessDeniedButton,
+          pressed && styles.accessDeniedButtonPressed,
+        ]}
+      >
+        <Text style={styles.accessDeniedButtonText}>Return to Dashboard</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -614,5 +641,60 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: colors.textMuted,
     textAlign: "center",
+  },
+
+  accessDeniedContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing["2xl"],
+    backgroundColor: colors.background,
+  },
+
+  accessDeniedIcon: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.dangerLight,
+  },
+
+  accessDeniedTitle: {
+    marginTop: spacing.xl,
+    fontSize: 24,
+    lineHeight: 31,
+    fontWeight: "700",
+    color: colors.text,
+    textAlign: "center",
+  },
+
+  accessDeniedMessage: {
+    maxWidth: 420,
+    marginTop: spacing.md,
+    fontSize: 15,
+    lineHeight: 23,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+
+  accessDeniedButton: {
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing["2xl"],
+    paddingHorizontal: spacing.xl,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+  },
+
+  accessDeniedButtonPressed: {
+    opacity: 0.75,
+  },
+
+  accessDeniedButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.white,
   },
 });
