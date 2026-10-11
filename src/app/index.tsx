@@ -121,29 +121,41 @@ export default function POSScreen() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
+  // Use the measured screen width and the current window height.
+  // This allows the layout to update when the device rotates.
   const actualViewportWidth = viewportWidth || width;
   const isTablet = actualViewportWidth >= TABLET_BREAKPOINT;
-  const isLandscapeTablet = isTablet && actualViewportWidth > height;
+  const isLandscapeTablet = isTablet && width > height;
 
   const contentWidth = Math.min(actualViewportWidth, MAX_CONTENT_WIDTH);
   const availableWidth = Math.max(0, contentWidth - PAGE_PADDING * 2);
 
-  const summaryColumns = isLandscapeTablet ? 5 : isTablet ? 3 : 2;
-  const summaryCardWidth =
-    (availableWidth - GRID_GAP * (summaryColumns - 1)) / summaryColumns;
+  // Five cards across in landscape, three in tablet portrait,
+  // and two on phones.
+  const summaryColumns = isLandscapeTablet ? 5 : isTablet ? 2 : 2;
 
-  // Promotions and Quick Access share a row on every tablet orientation.
-  const toolColumns = isTablet ? 2 : 1;
-  const toolColumnWidth = Math.max(
+  // Shop Performance and Promotions share one tablet row.
+  // Portrait: 50% / 50%.
+  // Landscape: 75% / 25%.
+  const performanceRatio = isLandscapeTablet ? 0.75 : 0.5;
+  const promotionRatio = 1 - performanceRatio;
+
+  const tabletRowWidth = Math.max(0, availableWidth - GRID_GAP);
+  const performanceWidth = tabletRowWidth * performanceRatio;
+  const promotionWidth = tabletRowWidth * promotionRatio;
+
+  const performanceCardWidth = Math.max(
     0,
-    (availableWidth - GRID_GAP * (toolColumns - 1)) / toolColumns,
+    (performanceWidth - GRID_GAP * (summaryColumns - 1)) / summaryColumns,
   );
 
-  const quickAccessColumns = 2;
+  // Phone summary cards use the full available content width.
+  const phoneCardWidth = Math.max(0, (availableWidth - GRID_GAP) / 2);
+
+  const quickAccessColumns = 4;
   const quickAccessCardWidth = Math.max(
     0,
-    (toolColumnWidth - GRID_GAP * (quickAccessColumns - 1)) /
-      quickAccessColumns,
+    (availableWidth - GRID_GAP * (quickAccessColumns - 1)) / quickAccessColumns,
   );
 
   const loadTodayReport = useCallback(async () => {
@@ -212,11 +224,130 @@ export default function POSScreen() {
     ? "Loading shop..."
     : configuredShopName || "Your Shop";
 
+  const overviewSection = (
+    <View style={styles.performanceColumn}>
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionHeaderText}>
+          <Text style={styles.sectionTitle}>Today's Overview</Text>
+          <Text style={styles.sectionSubtitle}>
+            A quick look at your shop's performance
+          </Text>
+        </View>
+
+        {loadingReport && (
+          <ActivityIndicator size="small" color={colors.primary} />
+        )}
+      </View>
+
+      <View style={styles.summaryGrid}>
+        <SummaryCard
+          label="Today's Sales"
+          value={formatCurrency(summary?.netSales ?? 0)}
+          description="Net sales today"
+          icon="trending-up-outline"
+          accent="primary"
+          width={isTablet ? performanceCardWidth : phoneCardWidth}
+        />
+
+        <SummaryCard
+          label="Collected"
+          value={formatCurrency(summary?.collected ?? 0)}
+          description="Payments received"
+          icon="cash-outline"
+          accent="success"
+          width={isTablet ? performanceCardWidth : phoneCardWidth}
+        />
+
+        <SummaryCard
+          label="Outstanding"
+          value={formatCurrency(summary?.outstanding ?? 0)}
+          description="Remaining balance"
+          icon="time-outline"
+          accent="warning"
+          width={isTablet ? performanceCardWidth : phoneCardWidth}
+        />
+
+        <SummaryCard
+          label="Job Orders"
+          value={String(summary?.jobOrderCount ?? 0)}
+          description="Orders today"
+          icon="receipt-outline"
+          accent="primary"
+          width={isTablet ? performanceCardWidth : phoneCardWidth}
+        />
+
+        <SummaryCard
+          label="Expenses"
+          value={formatCurrency(summary?.totalExpenses ?? 0)}
+          description="Recorded today"
+          icon="wallet-outline"
+          accent="danger"
+          width={isTablet ? performanceCardWidth : phoneCardWidth}
+        />
+      </View>
+    </View>
+  );
+
+  const promotionsSection = (
+    <View
+      style={[
+        styles.promotionColumn,
+        isTablet && {
+          width: promotionWidth,
+          flexBasis: promotionWidth,
+          flexGrow: 0,
+          flexShrink: 0,
+        },
+      ]}
+    >
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionHeaderText}>
+          <Text style={styles.sectionTitle}>Promotions</Text>
+          <Text style={styles.sectionSubtitle}>
+            Featured offers for your customers
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.promotionContainer}>
+        {loadingPromotion ? (
+          <View style={styles.promotionPlaceholder}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.promotionPlaceholderTitle}>
+              Loading promotions
+            </Text>
+            <Text style={styles.promotionPlaceholderText}>
+              Checking for the latest featured offers.
+            </Text>
+          </View>
+        ) : promotion ? (
+          <PromotionCard promotion={promotion} />
+        ) : (
+          <View style={styles.promotionPlaceholder}>
+            <View style={styles.promotionPlaceholderIcon}>
+              <Ionicons
+                name="megaphone-outline"
+                size={28}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={styles.promotionPlaceholderTitle}>Promotions</Text>
+            <Text style={styles.promotionPlaceholderText}>
+              No promotion is available right now. Published offers will appear
+              here automatically.
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
   return (
     <ScrollView
       style={styles.container}
       onLayout={(event) => {
         const measuredWidth = event.nativeEvent.layout.width;
+
         setViewportWidth((current) =>
           Math.abs(current - measuredWidth) > 1 ? measuredWidth : current,
         );
@@ -275,175 +406,71 @@ export default function POSScreen() {
         </Pressable>
       </View>
 
-      {/* Today's overview */}
-      <View style={styles.sectionHeader}>
-        <View style={styles.sectionHeaderText}>
-          <Text style={styles.sectionTitle}>Today's Overview</Text>
-          <Text style={styles.sectionSubtitle}>
-            A quick look at your shop's performance
-          </Text>
+      {/* Tablet: performance and promotions side by side.
+          Portrait = 50/50. Landscape = 75/25. */}
+      {isTablet ? (
+        <View style={styles.performancePromotionRow}>
+          {overviewSection}
+          {promotionsSection}
         </View>
+      ) : (
+        <>
+          {/* Phone: Promotions immediately below the header. */}
+          {promotionsSection}
+          {overviewSection}
+        </>
+      )}
 
-        {loadingReport && (
-          <ActivityIndicator size="small" color={colors.primary} />
-        )}
-      </View>
-
-      <View style={styles.summaryGrid}>
-        <SummaryCard
-          label="Today's Sales"
-          value={formatCurrency(summary?.netSales ?? 0)}
-          description="Net sales today"
-          icon="trending-up-outline"
-          accent="primary"
-          width={summaryCardWidth}
-        />
-
-        <SummaryCard
-          label="Collected"
-          value={formatCurrency(summary?.collected ?? 0)}
-          description="Payments received"
-          icon="cash-outline"
-          accent="success"
-          width={summaryCardWidth}
-        />
-
-        <SummaryCard
-          label="Outstanding"
-          value={formatCurrency(summary?.outstanding ?? 0)}
-          description="Remaining balance"
-          icon="time-outline"
-          accent="warning"
-          width={summaryCardWidth}
-        />
-
-        <SummaryCard
-          label="Job Orders"
-          value={String(summary?.jobOrderCount ?? 0)}
-          description="Orders today"
-          icon="receipt-outline"
-          accent="primary"
-          width={summaryCardWidth}
-        />
-
-        <SummaryCard
-          label="Expenses"
-          value={formatCurrency(summary?.totalExpenses ?? 0)}
-          description="Recorded today"
-          icon="wallet-outline"
-          accent="danger"
-          width={summaryCardWidth}
-        />
-      </View>
-
-      {/* Recent job orders */}
+      {/* Recent Job Orders */}
       <View style={styles.recentOrdersSection}>
         <RecentJobOrders />
       </View>
 
-      {/* Promotions and Quick Access: always visible */}
-      <View
-        style={[styles.dashboardTools, isTablet && styles.dashboardToolsTablet]}
-      >
-        <View
-          style={[
-            styles.toolColumn,
-            isTablet
-              ? { width: toolColumnWidth, maxWidth: toolColumnWidth }
-              : styles.toolColumnPhone,
-          ]}
-        >
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderText}>
-              <Text style={styles.sectionTitle}>Promotions</Text>
-              <Text style={styles.sectionSubtitle}>
-                Featured offers for your customers
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.promotionContainer}>
-            {loadingPromotion ? (
-              <View style={styles.promotionPlaceholder}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.promotionPlaceholderTitle}>
-                  Loading promotions
-                </Text>
-                <Text style={styles.promotionPlaceholderText}>
-                  Checking for the latest featured offers.
-                </Text>
-              </View>
-            ) : promotion ? (
-              <PromotionCard promotion={promotion} />
-            ) : (
-              <View style={styles.promotionPlaceholder}>
-                <View style={styles.promotionPlaceholderIcon}>
-                  <Ionicons
-                    name="megaphone-outline"
-                    size={28}
-                    color={colors.primary}
-                  />
-                </View>
-                <Text style={styles.promotionPlaceholderTitle}>Promotions</Text>
-                <Text style={styles.promotionPlaceholderText}>
-                  No promotion is available right now. Published offers will
-                  appear here automatically.
-                </Text>
-              </View>
-            )}
+      {/* Quick Access follows the recent orders section. */}
+      <View style={styles.quickAccessSection}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeaderText}>
+            <Text style={styles.sectionTitle}>Quick Access</Text>
+            <Text style={styles.sectionSubtitle}>
+              Get to everyday tasks faster
+            </Text>
           </View>
         </View>
 
-        <View
-          style={[
-            styles.toolColumn,
-            isTablet
-              ? { width: toolColumnWidth, maxWidth: toolColumnWidth }
-              : styles.toolColumnPhone,
-          ]}
-        >
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderText}>
-              <Text style={styles.sectionTitle}>Quick Access</Text>
-              <Text style={styles.sectionSubtitle}>
-                Get to everyday tasks faster
+        <View style={styles.quickAccessGrid}>
+          {quickAccessItems.map((item) => (
+            <Pressable
+              key={item.title}
+              onPress={() => router.push(item.route as never)}
+              style={({ pressed }) => [
+                styles.quickAccessCard,
+                {
+                  width: isTablet ? quickAccessCardWidth : phoneCardWidth,
+                },
+                pressed && styles.pressed,
+              ]}
+            >
+              <View style={styles.quickAccessIcon}>
+                <Ionicons name={item.icon} size={23} color={colors.primary} />
+              </View>
+
+              <Text style={styles.quickAccessTitle} numberOfLines={1}>
+                {item.title}
               </Text>
-            </View>
-          </View>
 
-          <View style={styles.quickAccessGrid}>
-            {quickAccessItems.map((item) => (
-              <Pressable
-                key={item.title}
-                onPress={() => router.push(item.route as never)}
-                style={({ pressed }) => [
-                  styles.quickAccessCard,
-                  { width: quickAccessCardWidth },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View style={styles.quickAccessIcon}>
-                  <Ionicons name={item.icon} size={23} color={colors.primary} />
-                </View>
+              <Text style={styles.quickAccessDescription} numberOfLines={2}>
+                {item.description}
+              </Text>
 
-                <Text style={styles.quickAccessTitle} numberOfLines={1}>
-                  {item.title}
-                </Text>
-
-                <Text style={styles.quickAccessDescription} numberOfLines={2}>
-                  {item.description}
-                </Text>
-
-                <View style={styles.quickAccessArrow}>
-                  <Ionicons
-                    name="arrow-forward"
-                    size={16}
-                    color={colors.primary}
-                  />
-                </View>
-              </Pressable>
-            ))}
-          </View>
+              <View style={styles.quickAccessArrow}>
+                <Ionicons
+                  name="arrow-forward"
+                  size={16}
+                  color={colors.primary}
+                />
+              </View>
+            </Pressable>
+          ))}
         </View>
       </View>
     </ScrollView>
@@ -643,10 +670,27 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
+  // Keep the performance and promotion columns in one row.
+  performancePromotionRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: GRID_GAP,
+  },
+
+  performanceColumn: {
+    minWidth: 0,
+    flex: 1,
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+
   summaryGrid: {
+    width: "100%",
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "flex-start",
+    alignItems: "stretch",
     gap: GRID_GAP,
   },
 
@@ -688,31 +732,10 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
 
-  recentOrdersSection: {
+  promotionColumn: {
     minWidth: 0,
-    marginTop: spacing["2xl"],
-  },
-
-  dashboardTools: {
-    minWidth: 0,
-    marginTop: spacing["2xl"],
-    gap: spacing.xl,
-  },
-
-  dashboardToolsTablet: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: GRID_GAP,
-  },
-
-  toolColumn: {
-    minWidth: 0,
-    flexShrink: 1,
-  },
-
-  toolColumnPhone: {
-    width: "100%",
-    maxWidth: "100%",
+    flex: 1,
+    marginBottom: spacing["2xl"],
   },
 
   promotionContainer: {
@@ -756,6 +779,16 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     lineHeight: 19,
+  },
+
+  recentOrdersSection: {
+    minWidth: 0,
+    marginTop: spacing["2xl"],
+  },
+
+  quickAccessSection: {
+    minWidth: 0,
+    marginTop: spacing["2xl"],
   },
 
   quickAccessGrid: {
