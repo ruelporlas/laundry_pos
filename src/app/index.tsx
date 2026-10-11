@@ -66,6 +66,7 @@ const quickAccessItems: QuickAccessItem[] = [
 const MAX_CONTENT_WIDTH = 1440;
 const PAGE_PADDING = 16;
 const GRID_GAP = 12;
+const TABLET_BREAKPOINT = 768;
 
 function getTodayDate(): string {
   const now = new Date();
@@ -112,6 +113,7 @@ export default function POSScreen() {
   const { width, height } = useWindowDimensions();
   const { user } = useAuth();
 
+  const [viewportWidth, setViewportWidth] = useState(0);
   const [report, setReport] = useState<SalesReport | null>(null);
   const [loadingReport, setLoadingReport] = useState(true);
   const [promotion, setPromotion] = useState<Promotion | null>(null);
@@ -119,10 +121,14 @@ export default function POSScreen() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
-  const isTablet = width >= 768;
-  const isLandscapeTablet = isTablet && width > height;
-  const contentWidth = Math.min(width, MAX_CONTENT_WIDTH);
-  const availableWidth = contentWidth - PAGE_PADDING * 2;
+  const actualViewportWidth = viewportWidth || width;
+  const isTablet = actualViewportWidth >= TABLET_BREAKPOINT;
+  const isLandscapeTablet = isTablet && actualViewportWidth > height;
+
+  // Measure the content viewport rather than assuming the device's
+  // full screen width. This accounts for the tablet's left navigation.
+  const contentWidth = Math.min(actualViewportWidth, MAX_CONTENT_WIDTH);
+  const availableWidth = Math.max(0, contentWidth - PAGE_PADDING * 2);
 
   const summaryColumns = isLandscapeTablet ? 5 : isTablet ? 3 : 2;
   const summaryCardWidth =
@@ -132,7 +138,12 @@ export default function POSScreen() {
   const toolColumnWidth =
     (availableWidth - GRID_GAP * (toolColumns - 1)) / toolColumns;
 
-  const quickAccessCardWidth = (toolColumnWidth - GRID_GAP) / 2;
+  const quickAccessColumns = 2;
+  const quickAccessCardWidth = Math.max(
+    0,
+    (toolColumnWidth - GRID_GAP * (quickAccessColumns - 1)) /
+      quickAccessColumns,
+  );
 
   const loadTodayReport = useCallback(async () => {
     try {
@@ -200,9 +211,17 @@ export default function POSScreen() {
     ? "Loading shop..."
     : configuredShopName || "Your Shop";
 
+  const showPromotion = !loadingPromotion && promotion !== null;
+
   return (
     <ScrollView
       style={styles.container}
+      onLayout={(event) => {
+        const measuredWidth = event.nativeEvent.layout.width;
+        setViewportWidth((current) =>
+          Math.abs(current - measuredWidth) > 1 ? measuredWidth : current,
+        );
+      }}
       contentContainerStyle={[
         styles.contentContainer,
         {
@@ -330,56 +349,39 @@ export default function POSScreen() {
           isLandscapeTablet && styles.dashboardToolsLandscape,
         ]}
       >
-        {/* Promotions remains visible even when no promotion is available. */}
-        <View style={[styles.toolColumn, { width: toolColumnWidth }]}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderText}>
-              <Text style={styles.sectionTitle}>Promotions</Text>
-              <Text style={styles.sectionSubtitle}>
-                Featured offers for your customers
-              </Text>
+        {showPromotion && promotion && (
+          <View
+            style={[
+              styles.toolColumn,
+              { width: toolColumnWidth, maxWidth: toolColumnWidth },
+            ]}
+          >
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderText}>
+                <Text style={styles.sectionTitle}>Promotions</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Featured offers for your customers
+                </Text>
+              </View>
             </View>
 
-            {loadingPromotion && (
-              <ActivityIndicator size="small" color={colors.primary} />
-            )}
-          </View>
-
-          {loadingPromotion ? (
-            <View style={styles.promotionEmptyState}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.promotionEmptyText}>
-                Loading promotions...
-              </Text>
-            </View>
-          ) : promotion ? (
             <View style={styles.promotionContainer}>
               <PromotionCard promotion={promotion} />
             </View>
-          ) : (
-            <View style={styles.promotionEmptyState}>
-              <View style={styles.promotionEmptyIcon}>
-                <Ionicons
-                  name="pricetag-outline"
-                  size={28}
-                  color={colors.textMuted}
-                />
-              </View>
-              <Text style={styles.promotionEmptyTitle}>
-                No promotions available
-              </Text>
-              <Text style={styles.promotionEmptyText}>
-                Enable promotions or add an offer to feature it here.
-              </Text>
-            </View>
-          )}
-        </View>
+          </View>
+        )}
 
-        {/* Quick access */}
         <View
           style={[
             styles.toolColumn,
-            isLandscapeTablet ? { width: toolColumnWidth } : { width: "100%" },
+            showPromotion
+              ? {
+                  width: toolColumnWidth,
+                  maxWidth: toolColumnWidth,
+                }
+              : {
+                  width: "100%",
+                },
           ]}
         >
           <View style={styles.sectionHeader}>
@@ -406,7 +408,9 @@ export default function POSScreen() {
                   <Ionicons name={item.icon} size={23} color={colors.primary} />
                 </View>
 
-                <Text style={styles.quickAccessTitle}>{item.title}</Text>
+                <Text style={styles.quickAccessTitle} numberOfLines={1}>
+                  {item.title}
+                </Text>
 
                 <Text style={styles.quickAccessDescription} numberOfLines={2}>
                   {item.description}
@@ -485,6 +489,7 @@ function SummaryCard({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: colors.background,
   },
 
@@ -494,6 +499,7 @@ const styles = StyleSheet.create({
   },
 
   header: {
+    minWidth: 0,
     backgroundColor: colors.surface,
     borderRadius: theme.radius.lg,
     borderWidth: 1,
@@ -581,7 +587,9 @@ const styles = StyleSheet.create({
   },
 
   createButtonLandscape: {
-    minWidth: 220,
+    minWidth: 0,
+    maxWidth: 260,
+    flexShrink: 1,
     alignSelf: "center",
     marginLeft: spacing.lg,
   },
@@ -603,6 +611,7 @@ const styles = StyleSheet.create({
 
   sectionHeaderText: {
     flex: 1,
+    minWidth: 0,
   },
 
   sectionTitle: {
@@ -624,6 +633,7 @@ const styles = StyleSheet.create({
   },
 
   summaryCard: {
+    minWidth: 0,
     minHeight: 148,
     backgroundColor: colors.surface,
     borderRadius: theme.radius.lg,
@@ -661,10 +671,12 @@ const styles = StyleSheet.create({
   },
 
   recentOrdersSection: {
+    minWidth: 0,
     marginTop: spacing["2xl"],
   },
 
   dashboardTools: {
+    minWidth: 0,
     marginTop: spacing["2xl"],
     gap: spacing.xl,
   },
@@ -677,55 +689,24 @@ const styles = StyleSheet.create({
 
   toolColumn: {
     minWidth: 0,
+    flexShrink: 1,
   },
 
   promotionContainer: {
+    minWidth: 0,
     borderRadius: theme.radius.lg,
     overflow: "hidden",
   },
 
-  promotionEmptyState: {
-    minHeight: 160,
-    padding: spacing.xl,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  promotionEmptyIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.md,
-  },
-
-  promotionEmptyTitle: {
-    ...typography.bodyMedium,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  promotionEmptyText: {
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 19,
-    marginTop: spacing.xs,
-  },
-
   quickAccessGrid: {
+    minWidth: 0,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: GRID_GAP,
   },
 
   quickAccessCard: {
+    minWidth: 0,
     minHeight: 150,
     backgroundColor: colors.surface,
     borderRadius: theme.radius.lg,

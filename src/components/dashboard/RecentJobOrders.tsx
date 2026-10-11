@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -90,6 +90,9 @@ function getStatusColors(order: JobOrderListItem): {
 
 export function RecentJobOrders() {
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
+  const isPhone = windowWidth < 768;
+
   const [orders, setOrders] = useState<JobOrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -127,6 +130,13 @@ export function RecentJobOrders() {
       active = false;
     };
   }, []);
+
+  function openOrder(order: JobOrderListItem) {
+    router.push({
+      pathname: "/orders",
+      params: { jobOrderId: String(order.id) },
+    });
+  }
 
   return (
     <View style={styles.card}>
@@ -181,88 +191,156 @@ export function RecentJobOrders() {
             New customer transactions will appear here.
           </Text>
         </View>
-      ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tableScroll}
-        >
-          <View style={styles.table}>
-            <View style={[styles.tableRow, styles.tableHeader]}>
-              <Text style={[styles.column, styles.orderColumn]}>ORDER</Text>
-              <Text style={[styles.column, styles.customerColumn]}>
-                CUSTOMER
-              </Text>
-              <Text style={[styles.column, styles.dateColumn]}>DATE</Text>
-              <Text style={[styles.column, styles.amountColumn]}>TOTAL</Text>
-              <Text style={[styles.column, styles.statusColumn]}>PAYMENT</Text>
-            </View>
+      ) : isPhone ? (
+        <View style={styles.mobileList}>
+          {orders.map((order) => {
+            const statusColors = getStatusColors(order);
 
-            {orders.map((order) => {
-              const statusColors = getStatusColors(order);
+            return (
+              <Pressable
+                key={order.id}
+                accessibilityRole="button"
+                onPress={() => openOrder(order)}
+                style={({ pressed }) => [
+                  styles.mobileOrder,
+                  pressed && styles.rowPressed,
+                ]}
+              >
+                <View style={styles.mobileTopRow}>
+                  <Text style={styles.orderNumber} numberOfLines={1}>
+                    {order.jobOrderNumber}
+                  </Text>
 
-              return (
-                <Pressable
-                  key={order.id}
-                  accessibilityRole="button"
-                  onPress={() =>
-                    router.push({
-                      pathname: "/orders",
-                      params: { jobOrderId: String(order.id) },
-                    })
-                  }
-                  style={({ pressed }) => [
-                    styles.tableRow,
-                    styles.dataRow,
-                    pressed && styles.rowPressed,
-                  ]}
-                >
-                  <View style={[styles.column, styles.orderColumn]}>
-                    <Text style={styles.orderNumber} numberOfLines={1}>
-                      {order.jobOrderNumber}
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: statusColors.background },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: statusColors.foreground },
+                      ]}
+                    >
+                      {getStatusLabel(order)}
                     </Text>
                   </View>
+                </View>
 
-                  <View style={[styles.column, styles.customerColumn]}>
-                    <Text style={styles.customerName} numberOfLines={1}>
-                      {order.customerName}
-                    </Text>
-                  </View>
+                <Text style={styles.mobileCustomerName}>
+                  {order.customerName}
+                </Text>
 
-                  <View style={[styles.column, styles.dateColumn]}>
-                    <Text style={styles.dateText} numberOfLines={1}>
+                <View style={styles.mobileDetailsRow}>
+                  <View style={styles.mobileDetail}>
+                    <Text style={styles.mobileLabel}>DATE</Text>
+                    <Text style={styles.dateText}>
                       {formatDate(order.createdAt)}
                     </Text>
                   </View>
 
-                  <View style={[styles.column, styles.amountColumn]}>
-                    <Text style={styles.amountText} numberOfLines={1}>
+                  <View style={[styles.mobileDetail, styles.mobileTotal]}>
+                    <Text style={styles.mobileLabel}>TOTAL</Text>
+                    <Text style={styles.amountText}>
                       {formatCurrency(order.total)}
                     </Text>
                   </View>
+                </View>
 
-                  <View style={[styles.column, styles.statusColumn]}>
-                    <View
+                <View style={styles.mobileFooter}>
+                  <Text style={styles.mobileFooterText}>
+                    View order details
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={15}
+                    color={colors.primary}
+                  />
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : (
+        <View style={styles.table}>
+          <View style={[styles.tableRow, styles.tableHeader]}>
+            <View style={[styles.column, styles.orderColumn]}>
+              <Text style={styles.columnHeaderText}>ORDER</Text>
+            </View>
+            <View style={[styles.column, styles.customerColumn]}>
+              <Text style={styles.columnHeaderText}>CUSTOMER</Text>
+            </View>
+            <View style={[styles.column, styles.dateColumn]}>
+              <Text style={styles.columnHeaderText}>DATE</Text>
+            </View>
+            <View style={[styles.column, styles.amountColumn]}>
+              <Text style={styles.columnHeaderText}>TOTAL</Text>
+            </View>
+            <View style={[styles.column, styles.statusColumn]}>
+              <Text style={styles.columnHeaderText}>PAYMENT</Text>
+            </View>
+          </View>
+
+          {orders.map((order) => {
+            const statusColors = getStatusColors(order);
+
+            return (
+              <Pressable
+                key={order.id}
+                accessibilityRole="button"
+                onPress={() => openOrder(order)}
+                style={({ pressed }) => [
+                  styles.tableRow,
+                  styles.dataRow,
+                  pressed && styles.rowPressed,
+                ]}
+              >
+                <View style={[styles.column, styles.orderColumn]}>
+                  <Text style={styles.orderNumber} numberOfLines={1}>
+                    {order.jobOrderNumber}
+                  </Text>
+                </View>
+
+                <View style={[styles.column, styles.customerColumn]}>
+                  <Text style={styles.customerName} numberOfLines={2}>
+                    {order.customerName}
+                  </Text>
+                </View>
+
+                <View style={[styles.column, styles.dateColumn]}>
+                  <Text style={styles.dateText} numberOfLines={2}>
+                    {formatDate(order.createdAt)}
+                  </Text>
+                </View>
+
+                <View style={[styles.column, styles.amountColumn]}>
+                  <Text style={styles.amountText} numberOfLines={1}>
+                    {formatCurrency(order.total)}
+                  </Text>
+                </View>
+
+                <View style={[styles.column, styles.statusColumn]}>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: statusColors.background },
+                    ]}
+                  >
+                    <Text
                       style={[
-                        styles.statusBadge,
-                        { backgroundColor: statusColors.background },
+                        styles.statusText,
+                        { color: statusColors.foreground },
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          { color: statusColors.foreground },
-                        ]}
-                      >
-                        {getStatusLabel(order)}
-                      </Text>
-                    </View>
+                      {getStatusLabel(order)}
+                    </Text>
                   </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        </ScrollView>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
       )}
     </View>
   );
@@ -270,6 +348,8 @@ export function RecentJobOrders() {
 
 const styles = StyleSheet.create({
   card: {
+    width: "100%",
+    minWidth: 0,
     backgroundColor: colors.surface,
     borderRadius: theme.radius.lg,
     borderWidth: 1,
@@ -295,6 +375,7 @@ const styles = StyleSheet.create({
 
   headerText: {
     flex: 1,
+    minWidth: 0,
   },
 
   title: {
@@ -322,23 +403,82 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  tableScroll: {
-    flexGrow: 1,
+  mobileList: {
+    width: "100%",
+  },
+
+  mobileOrder: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: spacing.sm,
+  },
+
+  mobileTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+
+  mobileCustomerName: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    flexShrink: 1,
+  },
+
+  mobileDetailsRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md,
+  },
+
+  mobileDetail: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+
+  mobileTotal: {
+    alignItems: "flex-start",
+  },
+
+  mobileLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: colors.textMuted,
+  },
+
+  mobileFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+    paddingTop: spacing.xs,
+  },
+
+  mobileFooterText: {
+    ...typography.small,
+    color: colors.primary,
+    fontWeight: "600",
   },
 
   table: {
-    minWidth: 680,
-    flexGrow: 1,
+    width: "100%",
+    alignSelf: "stretch",
   },
 
   tableRow: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: spacing.lg,
   },
 
   tableHeader: {
-    minHeight: 42,
+    minHeight: 44,
     backgroundColor: colors.surfaceSoft,
     borderTopWidth: 1,
     borderBottomWidth: 1,
@@ -346,29 +486,37 @@ const styles = StyleSheet.create({
   },
 
   column: {
-    paddingHorizontal: spacing.xs,
+    minWidth: 0,
     justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+  },
+
+  columnHeaderText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1,
+    color: colors.textSecondary,
   },
 
   orderColumn: {
-    width: 135,
+    flex: 1.05,
   },
 
   customerColumn: {
-    width: 165,
+    flex: 1.5,
   },
 
   dateColumn: {
-    width: 145,
+    flex: 1.25,
   },
 
   amountColumn: {
-    width: 125,
-    alignItems: "flex-end",
+    flex: 1.05,
+    alignItems: "flex-start",
   },
 
   statusColumn: {
-    width: 105,
+    flex: 0.95,
     alignItems: "flex-start",
   },
 
@@ -382,22 +530,26 @@ const styles = StyleSheet.create({
     ...typography.small,
     color: colors.primary,
     fontWeight: "700",
+    flexShrink: 1,
   },
 
   customerName: {
     ...typography.bodyMedium,
     color: colors.text,
+    flexShrink: 1,
   },
 
   dateText: {
     ...typography.small,
     color: colors.textSecondary,
+    flexShrink: 1,
   },
 
   amountText: {
     ...typography.bodyMedium,
     color: colors.text,
     fontWeight: "600",
+    flexShrink: 1,
   },
 
   statusBadge: {
