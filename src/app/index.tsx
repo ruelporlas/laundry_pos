@@ -121,7 +121,6 @@ export default function POSScreen() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
-  // Recalculate the layout when the device rotates or its width changes.
   const actualViewportWidth = viewportWidth || width;
   const isTablet = Math.min(width, height) >= TABLET_MIN_DIMENSION;
   const isLandscapeTablet = isTablet && width > height;
@@ -129,20 +128,20 @@ export default function POSScreen() {
   const contentWidth = Math.min(actualViewportWidth, MAX_CONTENT_WIDTH);
   const availableWidth = Math.max(0, contentWidth - PAGE_PADDING * 2);
 
-  // The tablet row contains two equal columns and a gap between them.
-  // Subtract that gap BEFORE calculating either column's width.
+  // The two tablet sections share the available width equally,
+  // accounting for the gap between them.
   const tabletColumnWidth = Math.max(0, (availableWidth - GRID_GAP) / 2);
 
-  // Four performance cards: two columns in portrait, four in landscape.
-  const summaryColumns = isLandscapeTablet ? 4 : 2;
+  // Always use two columns for the four Performance cards,
+  // in both tablet portrait and landscape.
+  const summaryColumns = 2;
 
-  // Calculate card widths from the actual width of the performance column.
+  // Calculate card width from the actual width of the Performance column.
   const performanceCardWidth = Math.max(
     0,
     (tabletColumnWidth - GRID_GAP * (summaryColumns - 1)) / summaryColumns,
   );
 
-  // Phone summary cards use two columns across the full content width.
   const phoneCardWidth = Math.max(0, (availableWidth - GRID_GAP) / 2);
 
   const quickAccessColumns = 4;
@@ -339,7 +338,6 @@ export default function POSScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Dashboard header */}
       <View
         style={[styles.header, isLandscapeTablet && styles.headerLandscape]}
       >
@@ -380,7 +378,6 @@ export default function POSScreen() {
         </Pressable>
       </View>
 
-      {/* Tablets: equal-width performance and promotion sections. */}
       {isTablet ? (
         <View style={styles.performancePromotionRow}>
           {overviewSection}
@@ -388,18 +385,15 @@ export default function POSScreen() {
         </View>
       ) : (
         <>
-          {/* Phone: promotions appear immediately below the header. */}
           {promotionsSection}
           {overviewSection}
         </>
       )}
 
-      {/* Recent Job Orders */}
       <View style={styles.recentOrdersSection}>
         <RecentJobOrders />
       </View>
 
-      {/* Today's Job Orders */}
       <View style={styles.todayOrdersSection}>
         <View style={styles.todayOrdersCard}>
           <View style={styles.todayOrdersIcon}>
@@ -423,7 +417,6 @@ export default function POSScreen() {
         </View>
       </View>
 
-      {/* Quick Access */}
       <View style={styles.quickAccessSection}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionHeaderText}>
