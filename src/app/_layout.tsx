@@ -25,6 +25,8 @@ import { registerActions } from "@/hooks/registerActions";
 import LoginScreen from "./login";
 
 const TABLET_BREAKPOINT = 768;
+const SIDEBAR_EXPANDED_WIDTH = 200;
+const SIDEBAR_COLLAPSED_WIDTH = 72;
 
 const ADMIN_ONLY_ROUTES = new Set([
   "/users",
@@ -113,20 +115,16 @@ export default function RootLayout() {
           <View style={styles.errorIcon}>
             <Ionicons name="warning-outline" size={32} color={colors.danger} />
           </View>
-
           <Text style={styles.errorTitle}>Database Initialization Failed</Text>
-
           <Text style={styles.errorSubtitle}>
             The app could not initialize the local database.
           </Text>
-
           <View style={styles.errorCard}>
             <Text style={styles.errorLabel}>Error Details</Text>
             <Text selectable style={styles.errorMessage}>
               {databaseError.message}
             </Text>
           </View>
-
           <Text style={styles.errorHint}>
             Please send this error message so we can fix the database
             initialization or migration.
@@ -157,6 +155,7 @@ function AuthenticatedApp() {
   const pathname = usePathname();
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const isTabletLayout = width >= TABLET_BREAKPOINT;
   const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
@@ -166,7 +165,9 @@ function AuthenticatedApp() {
     href: null,
     tabBarStyle: isTabletLayout
       ? {
-          width: 220,
+          width: sidebarCollapsed
+            ? SIDEBAR_COLLAPSED_WIDTH
+            : SIDEBAR_EXPANDED_WIDTH,
           backgroundColor: colors.surface,
           borderRightColor: colors.border,
           borderRightWidth: 1,
@@ -191,7 +192,9 @@ function AuthenticatedApp() {
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: isTabletLayout
           ? {
-              width: 220,
+              width: sidebarCollapsed
+                ? SIDEBAR_COLLAPSED_WIDTH
+                : SIDEBAR_EXPANDED_WIDTH,
               backgroundColor: colors.surface,
               borderRightColor: colors.border,
               borderRightWidth: 1,
@@ -222,7 +225,6 @@ function AuthenticatedApp() {
           ),
         }}
       />
-
       <Tabs.Screen
         name="orders"
         options={{
@@ -232,7 +234,6 @@ function AuthenticatedApp() {
           ),
         }}
       />
-
       <Tabs.Screen
         name="sales-report"
         options={{
@@ -242,7 +243,6 @@ function AuthenticatedApp() {
           ),
         }}
       />
-
       <Tabs.Screen
         name="more"
         options={{
@@ -317,14 +317,11 @@ function AccessDeniedScreen({ onReturn }: { onReturn: () => void }) {
           color={colors.danger}
         />
       </View>
-
       <Text style={styles.accessDeniedTitle}>Access Denied</Text>
-
       <Text style={styles.accessDeniedMessage}>
         You do not have permission to manage user accounts. Please contact an
         administrator if you need access.
       </Text>
-
       <Pressable
         accessibilityRole="button"
         onPress={onReturn}
