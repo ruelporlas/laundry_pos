@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "@/constants/colors";
 import { PAGE_PADDING } from "@/constants/layout";
@@ -24,97 +26,155 @@ export function PageHero({
   disabled = false,
   children,
 }: PageHeroProps) {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  const handleBack = () => {
+    if (disabled) return;
+
+    if (onBack) {
+      onBack();
+      return;
+    }
+
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/");
+    }
+  };
+
+  const handleDashboard = () => {
+    router.replace("/");
+  };
+
   return (
-    <View style={styles.hero}>
-      {onBack ? (
+    <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
+      <View style={styles.header}>
         <Pressable
-          onPress={onBack}
+          onPress={handleBack}
           disabled={disabled}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           accessibilityState={{ disabled }}
           hitSlop={8}
           style={({ pressed }) => [
-            styles.backButton,
-            pressed && !disabled && styles.backButtonPressed,
-            disabled && styles.backButtonDisabled,
+            styles.navigationButton,
+            pressed && !disabled && styles.buttonPressed,
+            disabled && styles.buttonDisabled,
           ]}
         >
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+          <Ionicons name="arrow-back" size={21} color={colors.text} />
         </Pressable>
-      ) : null}
 
-      {children ? (
-        <View style={styles.customContent}>{children}</View>
-      ) : (
-        <View style={styles.icon}>
-          <Ionicons name={icon} size={28} color={colors.primary} />
+        <View style={styles.heading}>
+          <Text numberOfLines={1} style={styles.title}>
+            {title}
+          </Text>
+
+          {subtitle ? (
+            <Text numberOfLines={2} style={styles.subtitle}>
+              {subtitle}
+            </Text>
+          ) : null}
         </View>
-      )}
 
-      <Text style={styles.title}>{title}</Text>
+        <Pressable
+          onPress={handleDashboard}
+          accessibilityRole="button"
+          accessibilityLabel="Go to Dashboard"
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.dashboardButton,
+            pressed && styles.buttonPressed,
+          ]}
+        >
+          <Ionicons name="home-outline" size={19} color={colors.primary} />
+        </Pressable>
+      </View>
 
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      {children ? <View style={styles.customContent}>{children}</View> : null}
+
+      <View style={styles.pageIcon} pointerEvents="none">
+        <Ionicons name={icon} size={16} color={colors.primary} />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    position: "relative",
-    alignItems: "center",
-    backgroundColor: colors.primaryLight,
+  container: {
+    backgroundColor: colors.surface,
     paddingHorizontal: PAGE_PADDING,
-    paddingTop: 54,
-    paddingBottom: spacing.xl,
-    borderBottomLeftRadius: theme.radius["2xl"],
-    borderBottomRightRadius: theme.radius["2xl"],
+    paddingBottom: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
 
-  backButton: {
-    position: "absolute",
-    top: 54,
-    left: PAGE_PADDING,
-    width: 44,
-    height: 44,
+  header: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+
+  navigationButton: {
+    width: 40,
+    height: 40,
+    flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
+    backgroundColor: colors.background,
   },
 
-  backButtonPressed: {
-    opacity: 0.7,
-  },
-
-  backButtonDisabled: {
-    opacity: 0.5,
-  },
-
-  icon: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
+  heading: {
+    flex: 1,
+    minWidth: 0,
     justifyContent: "center",
-    borderRadius: theme.radius.full,
-    backgroundColor: colors.white,
-  },
-
-  customContent: {
-    alignItems: "center",
   },
 
   title: {
     ...typography.h2,
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "700",
     color: colors.text,
-    marginTop: spacing.md,
-    textAlign: "center",
   },
 
   subtitle: {
-    ...typography.small,
+    marginTop: 1,
+    fontSize: 12,
+    lineHeight: 16,
     color: colors.textSecondary,
-    marginTop: spacing.xs,
-    textAlign: "center",
+  },
+
+  dashboardButton: {
+    width: 40,
+    height: 40,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.radius.full,
+    backgroundColor: colors.primaryLight,
+  },
+
+  buttonPressed: {
+    opacity: 0.65,
+  },
+
+  buttonDisabled: {
+    opacity: 0.4,
+  },
+
+  customContent: {
+    marginTop: spacing.sm,
+  },
+
+  pageIcon: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
 });

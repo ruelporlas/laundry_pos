@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -23,6 +24,8 @@ import { registerActions } from "@/hooks/registerActions";
 
 import LoginScreen from "./login";
 
+const TABLET_BREAKPOINT = 768;
+
 const ADMIN_ONLY_ROUTES = new Set([
   "/users",
   "/add-user",
@@ -30,17 +33,8 @@ const ADMIN_ONLY_ROUTES = new Set([
   "/edit-user",
 ]);
 
-/**
- * Configure screen orientation according to the physical device type.
- *
- * Tablets: allow portrait and landscape.
- * Phones and other native device types: upright portrait only.
- * Web: leave orientation handling to the browser.
- */
 async function configureOrientationForDevice(): Promise<void> {
-  if (Platform.OS === "web") {
-    return;
-  }
+  if (Platform.OS === "web") return;
 
   try {
     const deviceType = await Device.getDeviceTypeAsync();
@@ -70,10 +64,8 @@ export default function RootLayout() {
 
     async function initializeDatabase() {
       try {
-        // 1. Create or update the database tables.
         await runMigrations();
 
-        // 2. Verify that the database is healthy.
         const isHealthy = await checkDatabase();
 
         if (!isHealthy) {
@@ -82,22 +74,15 @@ export default function RootLayout() {
           );
         }
 
-        // 3. Seed the requested demo records.
-        // The seeder is responsible for checking whether the database
-        // is empty before inserting any sample data.
         await seedDemoData();
 
         console.log(
           "Database OK — migrations, health check, and demo data seeding completed.",
         );
 
-        // 4. Register app actions after database initialization.
         registerActions();
 
-        // 5. Allow the app to render.
-        if (mounted) {
-          setDatabaseReady(true);
-        }
+        if (mounted) setDatabaseReady(true);
       } catch (error) {
         console.error("Database initialization failed:", error);
 
@@ -137,7 +122,6 @@ export default function RootLayout() {
 
           <View style={styles.errorCard}>
             <Text style={styles.errorLabel}>Error Details</Text>
-
             <Text selectable style={styles.errorMessage}>
               {databaseError.message}
             </Text>
@@ -172,9 +156,23 @@ function AuthenticatedApp() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const router = useRouter();
+  const { width } = useWindowDimensions();
 
+  const isTabletLayout = width >= TABLET_BREAKPOINT;
   const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
   const isAdminOnlyRoute = ADMIN_ONLY_ROUTES.has(normalizedPathname);
+
+  const hiddenRouteOptions = {
+    href: null,
+    tabBarStyle: isTabletLayout
+      ? {
+          width: 220,
+          backgroundColor: colors.surface,
+          borderRightColor: colors.border,
+          borderRightWidth: 1,
+        }
+      : { display: "none" as const },
+  };
 
   if (!isAuthenticated) {
     return <LoginScreen />;
@@ -188,31 +186,33 @@ function AuthenticatedApp() {
     <Tabs
       screenOptions={{
         headerShown: false,
-
+        tabBarPosition: isTabletLayout ? "left" : "bottom",
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          height: 60 + insets.bottom,
-          paddingTop: spacing.xs,
-          paddingBottom: insets.bottom + spacing.xs,
-        },
-
+        tabBarStyle: isTabletLayout
+          ? {
+              width: 220,
+              backgroundColor: colors.surface,
+              borderRightColor: colors.border,
+              borderRightWidth: 1,
+            }
+          : {
+              backgroundColor: colors.surface,
+              borderTopColor: colors.border,
+              borderTopWidth: 1,
+              height: 60 + insets.bottom,
+              paddingTop: spacing.xs,
+              paddingBottom: insets.bottom + spacing.xs,
+            },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: "500",
         },
-
         tabBarItemStyle: {
           paddingVertical: spacing.xs,
         },
       }}
     >
-      {/* MAIN BOTTOM TABS */}
-
       <Tabs.Screen
         name="index"
         options={{
@@ -257,320 +257,52 @@ function AuthenticatedApp() {
         }}
       />
 
-      {/* HIDDEN MANAGEMENT ROUTES */}
+      <Tabs.Screen name="products" options={hiddenRouteOptions} />
+      <Tabs.Screen name="services" options={hiddenRouteOptions} />
+      <Tabs.Screen name="bundles" options={hiddenRouteOptions} />
+      <Tabs.Screen name="activity-log" options={hiddenRouteOptions} />
+      <Tabs.Screen name="customers" options={hiddenRouteOptions} />
+      <Tabs.Screen name="settings" options={hiddenRouteOptions} />
 
-      <Tabs.Screen
-        name="products"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
+      <Tabs.Screen name="add-customer" options={hiddenRouteOptions} />
+      <Tabs.Screen name="customer-details" options={hiddenRouteOptions} />
+      <Tabs.Screen name="edit-customer" options={hiddenRouteOptions} />
 
-      <Tabs.Screen
-        name="services"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
+      <Tabs.Screen name="add-product" options={hiddenRouteOptions} />
+      <Tabs.Screen name="product-details" options={hiddenRouteOptions} />
+      <Tabs.Screen name="edit-product" options={hiddenRouteOptions} />
 
-      <Tabs.Screen
-        name="bundles"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
+      <Tabs.Screen name="add-service" options={hiddenRouteOptions} />
+      <Tabs.Screen name="service-details" options={hiddenRouteOptions} />
+      <Tabs.Screen name="edit-service" options={hiddenRouteOptions} />
 
-      <Tabs.Screen
-        name="activity-log"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
+      <Tabs.Screen name="add-bundle" options={hiddenRouteOptions} />
+      <Tabs.Screen name="bundle-details" options={hiddenRouteOptions} />
+      <Tabs.Screen name="edit-bundle" options={hiddenRouteOptions} />
 
-      <Tabs.Screen
-        name="customers"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="new-job-order" options={hiddenRouteOptions} />
+      <Tabs.Screen name="payment" options={hiddenRouteOptions} />
+      <Tabs.Screen name="job-order-created" options={hiddenRouteOptions} />
 
-      <Tabs.Screen
-        name="settings"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
+      <Tabs.Screen name="users" options={hiddenRouteOptions} />
+      <Tabs.Screen name="user-details" options={hiddenRouteOptions} />
+      <Tabs.Screen name="add-user" options={hiddenRouteOptions} />
+      <Tabs.Screen name="edit-user" options={hiddenRouteOptions} />
 
-      {/* CUSTOMER ROUTES */}
+      <Tabs.Screen name="expenses" options={hiddenRouteOptions} />
+      <Tabs.Screen name="add-expense" options={hiddenRouteOptions} />
+      <Tabs.Screen name="expense-details" options={hiddenRouteOptions} />
+      <Tabs.Screen name="edit-expense" options={hiddenRouteOptions} />
 
-      <Tabs.Screen
-        name="add-customer"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
+      <Tabs.Screen name="inventory" options={hiddenRouteOptions} />
+      <Tabs.Screen name="inventory-dashboard" options={hiddenRouteOptions} />
+      <Tabs.Screen name="inventory-history" options={hiddenRouteOptions} />
+      <Tabs.Screen name="stock-in" options={hiddenRouteOptions} />
+      <Tabs.Screen name="stock-out" options={hiddenRouteOptions} />
+      <Tabs.Screen name="stock-adjustment" options={hiddenRouteOptions} />
+      <Tabs.Screen name="inventory-settings" options={hiddenRouteOptions} />
 
-      <Tabs.Screen
-        name="customer-details"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="edit-customer"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      {/* PRODUCT ROUTES */}
-
-      <Tabs.Screen
-        name="add-product"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="product-details"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="edit-product"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      {/* SERVICE ROUTES */}
-
-      <Tabs.Screen
-        name="add-service"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="service-details"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="edit-service"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      {/* BUNDLE ROUTES */}
-
-      <Tabs.Screen
-        name="add-bundle"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="bundle-details"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="edit-bundle"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      {/* JOB ORDER ROUTES */}
-
-      <Tabs.Screen
-        name="new-job-order"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="payment"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="job-order-created"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      {/* USER MANAGEMENT ROUTES */}
-
-      <Tabs.Screen
-        name="users"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="user-details"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="add-user"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="edit-user"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      {/* EXPENSE ROUTES */}
-
-      <Tabs.Screen
-        name="expenses"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="add-expense"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="expense-details"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="edit-expense"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      {/* INVENTORY ROUTES */}
-
-      <Tabs.Screen
-        name="inventory"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="inventory-dashboard"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="inventory-history"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="stock-in"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="stock-out"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="stock-adjustment"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="inventory-settings"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      {/* DEVELOPMENT / AUTH ROUTES */}
-
-      <Tabs.Screen
-        name="login"
-        options={{
-          href: null,
-          tabBarStyle: { display: "none" },
-        }}
-      />
+      <Tabs.Screen name="login" options={hiddenRouteOptions} />
     </Tabs>
   );
 }
@@ -615,19 +347,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     padding: spacing["2xl"],
   },
-
   errorContainer: {
     flex: 1,
     backgroundColor: colors.background,
   },
-
   errorContent: {
     flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: spacing["2xl"],
   },
-
   errorIcon: {
     width: 64,
     height: 64,
@@ -636,7 +365,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.dangerLight,
   },
-
   errorTitle: {
     marginTop: spacing.lg,
     fontSize: 22,
@@ -645,7 +373,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: "center",
   },
-
   errorSubtitle: {
     marginTop: spacing.sm,
     fontSize: 14,
@@ -653,7 +380,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
   },
-
   errorCard: {
     width: "100%",
     marginTop: spacing.xl,
@@ -663,7 +389,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-
   errorLabel: {
     fontSize: 13,
     lineHeight: 18,
@@ -671,13 +396,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
-
   errorMessage: {
     fontSize: 14,
     lineHeight: 21,
     color: colors.danger,
   },
-
   errorHint: {
     marginTop: spacing.lg,
     fontSize: 13,
@@ -685,7 +408,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: "center",
   },
-
   accessDeniedContainer: {
     flex: 1,
     alignItems: "center",
@@ -693,7 +415,6 @@ const styles = StyleSheet.create({
     padding: spacing["2xl"],
     backgroundColor: colors.background,
   },
-
   accessDeniedIcon: {
     width: 76,
     height: 76,
@@ -702,7 +423,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.dangerLight,
   },
-
   accessDeniedTitle: {
     marginTop: spacing.xl,
     fontSize: 24,
@@ -711,7 +431,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: "center",
   },
-
   accessDeniedMessage: {
     maxWidth: 420,
     marginTop: spacing.md,
@@ -720,7 +439,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
   },
-
   accessDeniedButton: {
     minHeight: 48,
     alignItems: "center",
@@ -730,11 +448,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.primary,
   },
-
   accessDeniedButtonPressed: {
     opacity: 0.75,
   },
-
   accessDeniedButtonText: {
     fontSize: 15,
     fontWeight: "600",
