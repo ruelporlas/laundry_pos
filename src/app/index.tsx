@@ -66,7 +66,7 @@ const quickAccessItems: QuickAccessItem[] = [
 const MAX_CONTENT_WIDTH = 1440;
 const PAGE_PADDING = 16;
 const GRID_GAP = 12;
-const TABLET_BREAKPOINT = 768;
+const TABLET_MIN_DIMENSION = 600;
 
 function getTodayDate(): string {
   const now = new Date();
@@ -121,24 +121,20 @@ export default function POSScreen() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
-  // Use the measured screen width and the current window height.
-  // This allows the layout to update when the device rotates.
+  // Update the responsive layout automatically when the device rotates.
   const actualViewportWidth = viewportWidth || width;
-  const isTablet = actualViewportWidth >= TABLET_BREAKPOINT;
+  const isTablet = Math.min(width, height) >= TABLET_MIN_DIMENSION;
   const isLandscapeTablet = isTablet && width > height;
 
   const contentWidth = Math.min(actualViewportWidth, MAX_CONTENT_WIDTH);
   const availableWidth = Math.max(0, contentWidth - PAGE_PADDING * 2);
 
-  // Five cards across in landscape, three in tablet portrait,
-  // and two on phones.
-  const summaryColumns = isLandscapeTablet ? 5 : isTablet ? 2 : 2;
+  // Four performance cards: two columns in portrait, four in landscape.
+  const summaryColumns = isLandscapeTablet ? 4 : 2;
 
-  // Shop Performance and Promotions share one tablet row.
-  // Portrait: 50% / 50%.
-  // Landscape: 75% / 25%.
-  const performanceRatio = isLandscapeTablet ? 0.75 : 0.5;
-  const promotionRatio = 1 - performanceRatio;
+  // Both tablet orientations use an equal 50% / 50% split.
+  const performanceRatio = 0.5;
+  const promotionRatio = 0.5;
 
   const tabletRowWidth = Math.max(0, availableWidth - GRID_GAP);
   const performanceWidth = tabletRowWidth * performanceRatio;
@@ -149,7 +145,6 @@ export default function POSScreen() {
     (performanceWidth - GRID_GAP * (summaryColumns - 1)) / summaryColumns,
   );
 
-  // Phone summary cards use the full available content width.
   const phoneCardWidth = Math.max(0, (availableWidth - GRID_GAP) / 2);
 
   const quickAccessColumns = 4;
@@ -225,10 +220,20 @@ export default function POSScreen() {
     : configuredShopName || "Your Shop";
 
   const overviewSection = (
-    <View style={styles.performanceColumn}>
+    <View
+      style={[
+        styles.performanceColumn,
+        isTablet && {
+          width: performanceWidth,
+          flexBasis: performanceWidth,
+          flexGrow: 0,
+          flexShrink: 0,
+        },
+      ]}
+    >
       <View style={styles.sectionHeader}>
         <View style={styles.sectionHeaderText}>
-          <Text style={styles.sectionTitle}>Today's Overview</Text>
+          <Text style={styles.sectionTitle}>Shop Performance</Text>
           <Text style={styles.sectionSubtitle}>
             A quick look at your shop's performance
           </Text>
@@ -264,15 +269,6 @@ export default function POSScreen() {
           description="Remaining balance"
           icon="time-outline"
           accent="warning"
-          width={isTablet ? performanceCardWidth : phoneCardWidth}
-        />
-
-        <SummaryCard
-          label="Job Orders"
-          value={String(summary?.jobOrderCount ?? 0)}
-          description="Orders today"
-          icon="receipt-outline"
-          accent="primary"
           width={isTablet ? performanceCardWidth : phoneCardWidth}
         />
 
@@ -365,7 +361,6 @@ export default function POSScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Dashboard header */}
       <View
         style={[styles.header, isLandscapeTablet && styles.headerLandscape]}
       >
@@ -406,8 +401,7 @@ export default function POSScreen() {
         </Pressable>
       </View>
 
-      {/* Tablet: performance and promotions side by side.
-          Portrait = 50/50. Landscape = 75/25. */}
+      {/* Tablets: equal-width performance and promotion sections. */}
       {isTablet ? (
         <View style={styles.performancePromotionRow}>
           {overviewSection}
@@ -415,18 +409,39 @@ export default function POSScreen() {
         </View>
       ) : (
         <>
-          {/* Phone: Promotions immediately below the header. */}
           {promotionsSection}
           {overviewSection}
         </>
       )}
 
-      {/* Recent Job Orders */}
       <View style={styles.recentOrdersSection}>
         <RecentJobOrders />
       </View>
 
-      {/* Quick Access follows the recent orders section. */}
+      {/* Today's Job Orders is below Recent Job Orders. */}
+      <View style={styles.todayOrdersSection}>
+        <View style={styles.todayOrdersCard}>
+          <View style={styles.todayOrdersIcon}>
+            <Ionicons name="receipt-outline" size={24} color={colors.primary} />
+          </View>
+
+          <View style={styles.todayOrdersText}>
+            <Text style={styles.todayOrdersLabel}>Today's Job Orders</Text>
+            <Text style={styles.todayOrdersDescription}>
+              Total job orders recorded today
+            </Text>
+          </View>
+
+          {loadingReport ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Text style={styles.todayOrdersValue}>
+              {summary?.jobOrderCount ?? 0}
+            </Text>
+          )}
+        </View>
+      </View>
+
       <View style={styles.quickAccessSection}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionHeaderText}>
@@ -670,7 +685,6 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  // Keep the performance and promotion columns in one row.
   performancePromotionRow: {
     width: "100%",
     flexDirection: "row",
@@ -681,8 +695,6 @@ const styles = StyleSheet.create({
   performanceColumn: {
     minWidth: 0,
     flex: 1,
-    flexGrow: 0,
-    flexShrink: 0,
   },
 
   summaryGrid: {
@@ -784,6 +796,56 @@ const styles = StyleSheet.create({
   recentOrdersSection: {
     minWidth: 0,
     marginTop: spacing["2xl"],
+  },
+
+  todayOrdersSection: {
+    minWidth: 0,
+    marginTop: spacing.md,
+  },
+
+  todayOrdersCard: {
+    minWidth: 0,
+    minHeight: 82,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+
+  todayOrdersIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primaryLight,
+  },
+
+  todayOrdersText: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  todayOrdersLabel: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontWeight: "700",
+  },
+
+  todayOrdersDescription: {
+    ...typography.small,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+
+  todayOrdersValue: {
+    ...typography.h2,
+    color: colors.primary,
+    marginLeft: spacing.sm,
   },
 
   quickAccessSection: {
