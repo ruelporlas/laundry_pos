@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 
+import { RecentJobOrders } from "@/components/dashboard/RecentJobOrders";
 import { PromotionCard } from "@/components/promotions/PromotionCard";
 import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
@@ -47,30 +48,38 @@ const quickAccessItems: QuickAccessItem[] = [
   },
   {
     title: "Reports",
-    description: "View sales, expenses & daily totals",
+    description: "View sales, expenses and daily totals",
     icon: "bar-chart-outline",
     route: "/sales-report",
   },
   {
     title: "More",
-    description: "Expenses, users & settings",
+    description: "Expenses, users and settings",
     icon: "ellipsis-horizontal-circle-outline",
     route: "/more",
   },
 ];
 
-const MAX_CONTENT_WIDTH = 1200;
-const PAGE_PADDING = 16;
-const GRID_GAP = 16;
+const MAX_CONTENT_WIDTH = 1440;
+const PAGE_PADDING = 20;
+const GRID_GAP = 14;
 
 function getTodayDate(): string {
   const now = new Date();
-
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function getTodayLabel(): string {
+  return new Intl.DateTimeFormat("en-PH", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date());
 }
 
 function formatCurrency(value: number): string {
@@ -88,58 +97,51 @@ function getDisplayName(
     username?: string | null;
   } | null,
 ): string {
-  if (user?.fullName?.trim()) {
-    return user.fullName.trim();
-  }
-
-  if (user?.username?.trim()) {
-    return user.username.trim();
-  }
+  if (user?.fullName?.trim()) return user.fullName.trim();
+  if (user?.username?.trim()) return user.username.trim();
 
   return "User";
 }
 
 export default function POSScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { user } = useAuth();
 
   const [report, setReport] = useState<SalesReport | null>(null);
   const [loadingReport, setLoadingReport] = useState(true);
-
   const [promotion, setPromotion] = useState<Promotion | null>(null);
   const [loadingPromotion, setLoadingPromotion] = useState(true);
 
   const isTablet = width >= 768;
-
+  const isLandscapeTablet = isTablet && width > height;
   const contentWidth = Math.min(width, MAX_CONTENT_WIDTH);
   const availableWidth = contentWidth - PAGE_PADDING * 2;
 
-  const numColumns = isTablet ? 4 : 2;
+  const summaryColumns = isLandscapeTablet ? 5 : isTablet ? 3 : 2;
+  const summaryCardWidth =
+    (availableWidth - GRID_GAP * (summaryColumns - 1)) / summaryColumns;
 
+  const toolColumns = isLandscapeTablet ? 2 : 1;
+  const toolColumnWidth =
+    (availableWidth - GRID_GAP * (toolColumns - 1)) / toolColumns;
+
+  const quickAccessColumns = isLandscapeTablet ? 2 : 2;
   const quickAccessCardWidth =
-    (availableWidth - GRID_GAP * (numColumns - 1)) / numColumns;
-
-  const summaryCardWidth = isTablet
-    ? (availableWidth - GRID_GAP * 4) / 5
-    : (availableWidth - GRID_GAP) / 2;
-
-  const dashboardHalfWidth = (availableWidth - GRID_GAP) / 2;
+    (toolColumnWidth - GRID_GAP * (quickAccessColumns - 1)) /
+    quickAccessColumns;
 
   const loadTodayReport = useCallback(async () => {
     try {
       setLoadingReport(true);
 
       const today = getTodayDate();
-
       const dateRange: SalesReportDateRange = {
         startDate: today,
         endDate: today,
       };
 
-      const result = await getSalesReport(dateRange);
-
-      setReport(result);
+      setReport(await getSalesReport(dateRange));
     } catch (error) {
       console.error("Failed to load today's dashboard report:", error);
       setReport(null);
@@ -170,8 +172,8 @@ export default function POSScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadTodayReport();
-      loadPromotion();
+      void loadTodayReport();
+      void loadPromotion();
     }, [loadTodayReport, loadPromotion]),
   );
 
@@ -192,69 +194,54 @@ export default function POSScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Hero */}
-      <View style={styles.hero}>
-        <View style={styles.heroIcon}>
-          <Ionicons name="cart-outline" size={30} color={colors.primary} />
+      {/* Dashboard header */}
+      <View
+        style={[styles.header, isLandscapeTablet && styles.headerLandscape]}
+      >
+        <View style={styles.headerMain}>
+          <View style={styles.brandRow}>
+            <View style={styles.brandIcon}>
+              <Ionicons name="shirt-outline" size={24} color={colors.primary} />
+            </View>
+
+            <View style={styles.brandTextContainer}>
+              <Text style={styles.brandTitle}>Laundry POS</Text>
+              <Text style={styles.brandSubtitle}>BUSINESS DASHBOARD</Text>
+            </View>
+          </View>
+
+          <Text style={styles.welcomeText}>Good day, {displayName}!</Text>
+
+          <Text style={styles.headerSubtitle}>
+            Here's what's happening with your laundry business today.
+          </Text>
+
+          <Text style={styles.dateText}>{getTodayLabel()}</Text>
         </View>
 
-        <Text style={styles.heroTitle}>Laundry POS</Text>
-
-        <Text style={styles.welcomeText}>Welcome back, {displayName}</Text>
-
-        <Text style={styles.heroSubtitle}>
-          Manage today&apos;s sales and job orders
-        </Text>
-      </View>
-
-      {/* Create New Job Order */}
-      <Pressable
-        onPress={() => router.push("/new-job-order")}
-        style={({ pressed }) => [
-          styles.newJobOrderCard,
-          isTablet && styles.newJobOrderCardTablet,
-          pressed && styles.pressed,
-        ]}
-      >
-        <View
-          style={[
-            styles.newJobOrderIcon,
-            isTablet && styles.newJobOrderIconTablet,
+        <Pressable
+          onPress={() => router.push("/new-job-order")}
+          style={({ pressed }) => [
+            styles.createButton,
+            isLandscapeTablet && styles.createButtonLandscape,
+            pressed && styles.pressed,
           ]}
         >
-          <Ionicons
-            name="add"
-            size={isTablet ? 34 : 28}
-            color={colors.primary}
-          />
-        </View>
+          <Ionicons name="add-circle-outline" size={23} color={colors.white} />
 
-        <View style={styles.newJobOrderText}>
-          <Text
-            style={[
-              styles.newJobOrderTitle,
-              isTablet && styles.newJobOrderTitleTablet,
-            ]}
-          >
-            Create New Job Order
-          </Text>
+          <Text style={styles.createButtonText}>Create New Job Order</Text>
 
-          <Text style={styles.newJobOrderSubtitle}>
-            Start a new customer transaction
-          </Text>
-        </View>
+          <Ionicons name="arrow-forward" size={18} color={colors.white} />
+        </Pressable>
+      </View>
 
-        <View style={styles.newJobOrderArrow}>
-          <Ionicons name="arrow-forward" size={20} color={colors.primary} />
-        </View>
-      </Pressable>
-
-      {/* Today's Overview */}
+      {/* Today's overview */}
       <View style={styles.sectionHeader}>
         <View style={styles.sectionHeaderText}>
-          <Text style={styles.sectionTitle}>Today&apos;s Overview</Text>
-
-          <Text style={styles.sectionSubtitle}>September 30, 2026</Text>
+          <Text style={styles.sectionTitle}>Today's Overview</Text>
+          <Text style={styles.sectionSubtitle}>
+            A quick look at your shop's performance
+          </Text>
         </View>
 
         {loadingReport && (
@@ -270,7 +257,6 @@ export default function POSScreen() {
           icon="trending-up-outline"
           accent="primary"
           width={summaryCardWidth}
-          tablet={isTablet}
         />
 
         <SummaryCard
@@ -280,7 +266,6 @@ export default function POSScreen() {
           icon="cash-outline"
           accent="success"
           width={summaryCardWidth}
-          tablet={isTablet}
         />
 
         <SummaryCard
@@ -290,7 +275,6 @@ export default function POSScreen() {
           icon="time-outline"
           accent="warning"
           width={summaryCardWidth}
-          tablet={isTablet}
         />
 
         <SummaryCard
@@ -300,7 +284,6 @@ export default function POSScreen() {
           icon="receipt-outline"
           accent="primary"
           width={summaryCardWidth}
-          tablet={isTablet}
         />
 
         <SummaryCard
@@ -309,55 +292,52 @@ export default function POSScreen() {
           description="Recorded today"
           icon="wallet-outline"
           accent="danger"
-          width={isTablet ? summaryCardWidth : availableWidth}
-          tablet={isTablet}
-          fullWidth={!isTablet}
+          width={summaryCardWidth}
         />
       </View>
 
-      {/* Promotion + Quick Access */}
-      <View
-        style={[styles.dashboardTools, isTablet && styles.dashboardToolsTablet]}
-      >
-        {/* Promotion */}
-        {!loadingPromotion && promotion && (
-          <View
-            style={[
-              styles.promotionColumn,
-              isTablet && {
-                width: dashboardHalfWidth,
-              },
-            ]}
-          >
-            <View style={styles.compactSectionHeader}>
-              <View style={styles.sectionHeaderText}>
-                <Text style={styles.sectionTitle}>For Your Laundry</Text>
+      {/* Recent Job Orders */}
+      <View style={styles.recentOrdersSection}>
+        <RecentJobOrders />
+      </View>
 
+      {/* Promotions and quick access */}
+      <View
+        style={[
+          styles.dashboardTools,
+          isLandscapeTablet && styles.dashboardToolsLandscape,
+        ]}
+      >
+        {!loadingPromotion && promotion && (
+          <View style={[styles.toolColumn, { width: toolColumnWidth }]}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderText}>
+                <Text style={styles.sectionTitle}>Promotions</Text>
                 <Text style={styles.sectionSubtitle}>
-                  Useful services for your shop
+                  Featured offers for your customers
                 </Text>
               </View>
             </View>
 
-            <PromotionCard promotion={promotion} />
+            <View style={styles.promotionContainer}>
+              <PromotionCard promotion={promotion} />
+            </View>
           </View>
         )}
 
-        {/* Quick Access */}
         <View
           style={[
-            styles.quickAccessColumn,
-            isTablet && {
-              width: promotion ? dashboardHalfWidth : "100%",
-            },
+            styles.toolColumn,
+            !loadingPromotion && promotion
+              ? { width: toolColumnWidth }
+              : { width: "100%" },
           ]}
         >
-          <View style={styles.compactSectionHeader}>
+          <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderText}>
               <Text style={styles.sectionTitle}>Quick Access</Text>
-
               <Text style={styles.sectionSubtitle}>
-                Manage your laundry shop
+                Get to everyday tasks faster
               </Text>
             </View>
           </View>
@@ -369,41 +349,26 @@ export default function POSScreen() {
                 onPress={() => router.push(item.route as never)}
                 style={({ pressed }) => [
                   styles.quickAccessCard,
-                  {
-                    width: isTablet
-                      ? promotion
-                        ? (dashboardHalfWidth - GRID_GAP) / 2
-                        : (availableWidth - GRID_GAP) / 2
-                      : quickAccessCardWidth,
-                  },
-                  isTablet && styles.quickAccessCardTablet,
+                  { width: quickAccessCardWidth },
                   pressed && styles.pressed,
                 ]}
               >
-                <View style={styles.quickAccessTop}>
-                  <View style={styles.quickAccessIcon}>
-                    <Ionicons
-                      name={item.icon}
-                      size={22}
-                      color={colors.primary}
-                    />
-                  </View>
-
-                  <View style={styles.quickAccessArrow}>
-                    <Ionicons
-                      name="arrow-forward"
-                      size={15}
-                      color={colors.textMuted}
-                    />
-                  </View>
+                <View style={styles.quickAccessIcon}>
+                  <Ionicons name={item.icon} size={23} color={colors.primary} />
                 </View>
 
-                <View style={styles.quickAccessContent}>
-                  <Text style={styles.quickAccessTitle}>{item.title}</Text>
+                <Text style={styles.quickAccessTitle}>{item.title}</Text>
 
-                  <Text style={styles.quickAccessDescription} numberOfLines={2}>
-                    {item.description}
-                  </Text>
+                <Text style={styles.quickAccessDescription} numberOfLines={2}>
+                  {item.description}
+                </Text>
+
+                <View style={styles.quickAccessArrow}>
+                  <Ionicons
+                    name="arrow-forward"
+                    size={16}
+                    color={colors.primary}
+                  />
                 </View>
               </Pressable>
             ))}
@@ -421,8 +386,6 @@ function SummaryCard({
   icon,
   accent,
   width,
-  tablet,
-  fullWidth = false,
 }: {
   label: string;
   value: string;
@@ -430,8 +393,6 @@ function SummaryCard({
   icon: keyof typeof Ionicons.glyphMap;
   accent: "primary" | "success" | "warning" | "danger";
   width: number;
-  tablet: boolean;
-  fullWidth?: boolean;
 }) {
   const accentColor =
     accent === "danger"
@@ -452,46 +413,22 @@ function SummaryCard({
           : colors.primaryLight;
 
   return (
-    <View
-      style={[
-        styles.summaryCard,
-        {
-          width: fullWidth ? "100%" : width,
-        },
-        tablet && styles.summaryCardTablet,
-      ]}
-    >
-      <View style={styles.summaryCardTop}>
-        <View
-          style={[
-            styles.summaryIcon,
-            {
-              backgroundColor: accentBackground,
-            },
-          ]}
-        >
-          <Ionicons name={icon} size={20} color={accentColor} />
-        </View>
+    <View style={[styles.summaryCard, { width }]}>
+      <View style={[styles.summaryIcon, { backgroundColor: accentBackground }]}>
+        <Ionicons name={icon} size={21} color={accentColor} />
       </View>
 
-      <Text
-        style={[
-          styles.summaryLabel,
-          accent === "danger" && styles.summaryLabelDanger,
-        ]}
-      >
+      <Text style={styles.summaryLabel} numberOfLines={2}>
         {label}
       </Text>
 
-      <Text
-        style={[styles.summaryValue, tablet && styles.summaryValueTablet]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
+      <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </Text>
 
-      <Text style={styles.summaryDescription}>{description}</Text>
+      <Text style={styles.summaryDescription} numberOfLines={2}>
+        {description}
+      </Text>
     </View>
   );
 }
@@ -507,114 +444,108 @@ const styles = StyleSheet.create({
     paddingBottom: spacing["3xl"],
   },
 
-  hero: {
-    alignItems: "center",
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
-  },
-
-  heroIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 22,
-    backgroundColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.md,
-  },
-
-  heroTitle: {
-    ...typography.display,
-    color: colors.text,
-    textAlign: "center",
-  },
-
-  welcomeText: {
-    ...typography.bodyMedium,
-    color: colors.primary,
-    textAlign: "center",
-    marginTop: spacing.xs,
-  },
-
-  heroSubtitle: {
-    ...typography.small,
-    color: colors.textSecondary,
-    textAlign: "center",
-    marginTop: 2,
-  },
-
-  newJobOrderCard: {
-    minHeight: 88,
-    backgroundColor: colors.primaryLight,
+  header: {
+    backgroundColor: colors.surface,
     borderRadius: theme.radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    marginBottom: spacing["2xl"],
+    gap: spacing.lg,
+  },
+
+  headerLandscape: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
+    justifyContent: "space-between",
+    padding: spacing.xl,
   },
 
-  newJobOrderCardTablet: {
-    minHeight: 104,
-    paddingHorizontal: spacing.xl,
-  },
-
-  newJobOrderIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  newJobOrderIconTablet: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-  },
-
-  newJobOrderText: {
+  headerMain: {
     flex: 1,
   },
 
-  newJobOrderTitle: {
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+
+  brandIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  brandTextContainer: {
+    flex: 1,
+  },
+
+  brandTitle: {
     ...typography.h3,
     color: colors.text,
   },
 
-  newJobOrderTitleTablet: {
-    fontSize: 20,
-  },
-
-  newJobOrderSubtitle: {
+  brandSubtitle: {
     ...typography.small,
-    color: colors.textSecondary,
+    color: colors.textMuted,
+    fontSize: 10,
+    letterSpacing: 1.1,
     marginTop: 2,
   },
 
-  newJobOrderArrow: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surface,
+  welcomeText: {
+    ...typography.h2,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+
+  headerSubtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+  },
+
+  dateText: {
+    ...typography.small,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
+  },
+
+  createButton: {
+    minHeight: 54,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.primary,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: spacing.sm,
+  },
+
+  createButtonLandscape: {
+    minWidth: 220,
+    alignSelf: "center",
+    marginLeft: spacing.lg,
+  },
+
+  createButtonText: {
+    ...typography.bodyMedium,
+    color: colors.white,
+    flexShrink: 1,
   },
 
   sectionHeader: {
-    marginTop: spacing["2xl"],
-    marginBottom: spacing.md,
+    minHeight: 54,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-
-  compactSectionHeader: {
     marginBottom: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 42,
+    gap: spacing.sm,
   },
 
   sectionHeaderText: {
@@ -629,33 +560,23 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     ...typography.small,
     color: colors.textSecondary,
-    marginTop: 2,
+    marginTop: 3,
   },
 
   summaryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
-    rowGap: GRID_GAP,
+    justifyContent: "flex-start",
+    gap: GRID_GAP,
   },
 
   summaryCard: {
-    minHeight: 154,
+    minHeight: 164,
     backgroundColor: colors.surface,
     borderRadius: theme.radius.lg,
-    padding: spacing.lg,
+    padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-
-  summaryCardTablet: {
-    minHeight: 170,
-  },
-
-  summaryCardTop: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-    marginBottom: spacing.md,
   },
 
   summaryIcon: {
@@ -664,16 +585,14 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: spacing.md,
   },
 
   summaryLabel: {
     ...typography.small,
     color: colors.textSecondary,
     fontWeight: "600",
-  },
-
-  summaryLabelDanger: {
-    color: colors.danger,
+    minHeight: 20,
   },
 
   summaryValue: {
@@ -682,83 +601,59 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
 
-  summaryValueTablet: {
-    fontSize: 22,
-  },
-
   summaryDescription: {
     ...typography.small,
     color: colors.textMuted,
     marginTop: spacing.xs,
   },
 
-  dashboardTools: {
+  recentOrdersSection: {
     marginTop: spacing["2xl"],
-    gap: spacing["2xl"],
   },
 
-  dashboardToolsTablet: {
+  dashboardTools: {
+    marginTop: spacing["2xl"],
+    gap: spacing.xl,
+  },
+
+  dashboardToolsLandscape: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: GRID_GAP,
   },
 
-  promotionColumn: {
-    width: "100%",
+  toolColumn: {
+    minWidth: 0,
   },
 
-  quickAccessColumn: {
-    width: "100%",
+  promotionContainer: {
+    borderRadius: theme.radius.lg,
+    overflow: "hidden",
   },
 
   quickAccessGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
-    rowGap: GRID_GAP,
+    gap: GRID_GAP,
   },
 
   quickAccessCard: {
-    minHeight: 148,
+    minHeight: 164,
     backgroundColor: colors.surface,
     borderRadius: theme.radius.lg,
-    padding: spacing.lg,
-    justifyContent: "space-between",
+    padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-
-  quickAccessCardTablet: {
-    minHeight: 140,
-    padding: spacing.md,
-  },
-
-  quickAccessTop: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
   },
 
   quickAccessIcon: {
     width: 44,
     height: 44,
-    borderRadius: 15,
+    borderRadius: 14,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
-  },
-
-  quickAccessArrow: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  quickAccessContent: {
-    marginTop: spacing.md,
+    marginBottom: spacing.md,
   },
 
   quickAccessTitle: {
@@ -769,8 +664,13 @@ const styles = StyleSheet.create({
   quickAccessDescription: {
     ...typography.small,
     color: colors.textSecondary,
-    marginTop: spacing.xs,
     lineHeight: 18,
+    marginTop: spacing.xs,
+  },
+
+  quickAccessArrow: {
+    alignSelf: "flex-end",
+    marginTop: spacing.sm,
   },
 
   pressed: {

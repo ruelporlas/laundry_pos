@@ -1,8 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Device from "expo-device";
 import { Tabs, usePathname, useRouter } from "expo-router";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,9 +29,40 @@ const ADMIN_ONLY_ROUTES = new Set([
   "/edit-user",
 ]);
 
+/**
+ * Configure screen orientation according to the physical device type.
+ *
+ * Tablets: allow portrait and landscape.
+ * Phones and other native device types: upright portrait only.
+ * Web: leave orientation handling to the browser.
+ */
+async function configureOrientationForDevice(): Promise<void> {
+  if (Platform.OS === "web") {
+    return;
+  }
+
+  try {
+    const deviceType = await Device.getDeviceTypeAsync();
+
+    if (deviceType === Device.DeviceType.TABLET) {
+      await ScreenOrientation.unlockAsync();
+    } else {
+      await ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP,
+      );
+    }
+  } catch (error) {
+    console.warn("Unable to configure screen orientation:", error);
+  }
+}
+
 export default function RootLayout() {
   const [databaseReady, setDatabaseReady] = useState(false);
   const [databaseError, setDatabaseError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    void configureOrientationForDevice();
+  }, []);
 
   useEffect(() => {
     let mounted = true;
