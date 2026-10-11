@@ -121,7 +121,7 @@ export default function POSScreen() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
-  // Update the responsive layout automatically when the device rotates.
+  // Recalculate the layout when the device rotates or its width changes.
   const actualViewportWidth = viewportWidth || width;
   const isTablet = Math.min(width, height) >= TABLET_MIN_DIMENSION;
   const isLandscapeTablet = isTablet && width > height;
@@ -129,22 +129,20 @@ export default function POSScreen() {
   const contentWidth = Math.min(actualViewportWidth, MAX_CONTENT_WIDTH);
   const availableWidth = Math.max(0, contentWidth - PAGE_PADDING * 2);
 
+  // The tablet row contains two equal columns and a gap between them.
+  // Subtract that gap BEFORE calculating either column's width.
+  const tabletColumnWidth = Math.max(0, (availableWidth - GRID_GAP) / 2);
+
   // Four performance cards: two columns in portrait, four in landscape.
   const summaryColumns = isLandscapeTablet ? 4 : 2;
 
-  // Both tablet orientations use an equal 50% / 50% split.
-  const performanceRatio = 0.5;
-  const promotionRatio = 0.5;
-
-  const tabletRowWidth = Math.max(0, availableWidth - GRID_GAP);
-  const performanceWidth = tabletRowWidth * performanceRatio;
-  const promotionWidth = tabletRowWidth * promotionRatio;
-
+  // Calculate card widths from the actual width of the performance column.
   const performanceCardWidth = Math.max(
     0,
-    (performanceWidth - GRID_GAP * (summaryColumns - 1)) / summaryColumns,
+    (tabletColumnWidth - GRID_GAP * (summaryColumns - 1)) / summaryColumns,
   );
 
+  // Phone summary cards use two columns across the full content width.
   const phoneCardWidth = Math.max(0, (availableWidth - GRID_GAP) / 2);
 
   const quickAccessColumns = 4;
@@ -220,17 +218,7 @@ export default function POSScreen() {
     : configuredShopName || "Your Shop";
 
   const overviewSection = (
-    <View
-      style={[
-        styles.performanceColumn,
-        isTablet && {
-          width: performanceWidth,
-          flexBasis: performanceWidth,
-          flexGrow: 0,
-          flexShrink: 0,
-        },
-      ]}
-    >
+    <View style={styles.performanceColumn}>
       <View style={styles.sectionHeader}>
         <View style={styles.sectionHeaderText}>
           <Text style={styles.sectionTitle}>Shop Performance</Text>
@@ -285,17 +273,7 @@ export default function POSScreen() {
   );
 
   const promotionsSection = (
-    <View
-      style={[
-        styles.promotionColumn,
-        isTablet && {
-          width: promotionWidth,
-          flexBasis: promotionWidth,
-          flexGrow: 0,
-          flexShrink: 0,
-        },
-      ]}
-    >
+    <View style={styles.promotionColumn}>
       <View style={styles.sectionHeader}>
         <View style={styles.sectionHeaderText}>
           <Text style={styles.sectionTitle}>Promotions</Text>
@@ -361,6 +339,7 @@ export default function POSScreen() {
       ]}
       showsVerticalScrollIndicator={false}
     >
+      {/* Dashboard header */}
       <View
         style={[styles.header, isLandscapeTablet && styles.headerLandscape]}
       >
@@ -409,16 +388,18 @@ export default function POSScreen() {
         </View>
       ) : (
         <>
+          {/* Phone: promotions appear immediately below the header. */}
           {promotionsSection}
           {overviewSection}
         </>
       )}
 
+      {/* Recent Job Orders */}
       <View style={styles.recentOrdersSection}>
         <RecentJobOrders />
       </View>
 
-      {/* Today's Job Orders is below Recent Job Orders. */}
+      {/* Today's Job Orders */}
       <View style={styles.todayOrdersSection}>
         <View style={styles.todayOrdersCard}>
           <View style={styles.todayOrdersIcon}>
@@ -442,6 +423,7 @@ export default function POSScreen() {
         </View>
       </View>
 
+      {/* Quick Access */}
       <View style={styles.quickAccessSection}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionHeaderText}>
@@ -687,18 +669,21 @@ const styles = StyleSheet.create({
 
   performancePromotionRow: {
     width: "100%",
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "flex-start",
     gap: GRID_GAP,
   },
 
   performanceColumn: {
-    minWidth: 0,
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
   },
 
   summaryGrid: {
     width: "100%",
+    minWidth: 0,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "flex-start",
@@ -745,14 +730,18 @@ const styles = StyleSheet.create({
   },
 
   promotionColumn: {
-    minWidth: 0,
     flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    maxWidth: "100%",
     marginBottom: spacing["2xl"],
   },
 
   promotionContainer: {
     width: "100%",
+    maxWidth: "100%",
     minWidth: 0,
+    alignSelf: "stretch",
     borderRadius: theme.radius.lg,
     overflow: "hidden",
   },
@@ -760,6 +749,8 @@ const styles = StyleSheet.create({
   promotionPlaceholder: {
     minHeight: 260,
     width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
     padding: spacing.xl,
