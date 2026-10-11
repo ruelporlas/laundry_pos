@@ -125,8 +125,6 @@ export default function POSScreen() {
   const isTablet = actualViewportWidth >= TABLET_BREAKPOINT;
   const isLandscapeTablet = isTablet && actualViewportWidth > height;
 
-  // Measure the content viewport rather than assuming the device's
-  // full screen width. This accounts for the tablet's left navigation.
   const contentWidth = Math.min(actualViewportWidth, MAX_CONTENT_WIDTH);
   const availableWidth = Math.max(0, contentWidth - PAGE_PADDING * 2);
 
@@ -134,9 +132,12 @@ export default function POSScreen() {
   const summaryCardWidth =
     (availableWidth - GRID_GAP * (summaryColumns - 1)) / summaryColumns;
 
-  const toolColumns = isLandscapeTablet ? 2 : 1;
-  const toolColumnWidth =
-    (availableWidth - GRID_GAP * (toolColumns - 1)) / toolColumns;
+  // Promotions and Quick Access share a row on every tablet orientation.
+  const toolColumns = isTablet ? 2 : 1;
+  const toolColumnWidth = Math.max(
+    0,
+    (availableWidth - GRID_GAP * (toolColumns - 1)) / toolColumns,
+  );
 
   const quickAccessColumns = 2;
   const quickAccessCardWidth = Math.max(
@@ -210,8 +211,6 @@ export default function POSScreen() {
   const shopName = loadingSettings
     ? "Loading shop..."
     : configuredShopName || "Your Shop";
-
-  const showPromotion = !loadingPromotion && promotion !== null;
 
   return (
     <ScrollView
@@ -342,46 +341,65 @@ export default function POSScreen() {
         <RecentJobOrders />
       </View>
 
-      {/* Promotions and quick access */}
+      {/* Promotions and Quick Access: always visible */}
       <View
-        style={[
-          styles.dashboardTools,
-          isLandscapeTablet && styles.dashboardToolsLandscape,
-        ]}
+        style={[styles.dashboardTools, isTablet && styles.dashboardToolsTablet]}
       >
-        {showPromotion && promotion && (
-          <View
-            style={[
-              styles.toolColumn,
-              { width: toolColumnWidth, maxWidth: toolColumnWidth },
-            ]}
-          >
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderText}>
-                <Text style={styles.sectionTitle}>Promotions</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Featured offers for your customers
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.promotionContainer}>
-              <PromotionCard promotion={promotion} />
+        <View
+          style={[
+            styles.toolColumn,
+            isTablet
+              ? { width: toolColumnWidth, maxWidth: toolColumnWidth }
+              : styles.toolColumnPhone,
+          ]}
+        >
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderText}>
+              <Text style={styles.sectionTitle}>Promotions</Text>
+              <Text style={styles.sectionSubtitle}>
+                Featured offers for your customers
+              </Text>
             </View>
           </View>
-        )}
+
+          <View style={styles.promotionContainer}>
+            {loadingPromotion ? (
+              <View style={styles.promotionPlaceholder}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.promotionPlaceholderTitle}>
+                  Loading promotions
+                </Text>
+                <Text style={styles.promotionPlaceholderText}>
+                  Checking for the latest featured offers.
+                </Text>
+              </View>
+            ) : promotion ? (
+              <PromotionCard promotion={promotion} />
+            ) : (
+              <View style={styles.promotionPlaceholder}>
+                <View style={styles.promotionPlaceholderIcon}>
+                  <Ionicons
+                    name="megaphone-outline"
+                    size={28}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text style={styles.promotionPlaceholderTitle}>Promotions</Text>
+                <Text style={styles.promotionPlaceholderText}>
+                  No promotion is available right now. Published offers will
+                  appear here automatically.
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
 
         <View
           style={[
             styles.toolColumn,
-            showPromotion
-              ? {
-                  width: toolColumnWidth,
-                  maxWidth: toolColumnWidth,
-                }
-              : {
-                  width: "100%",
-                },
+            isTablet
+              ? { width: toolColumnWidth, maxWidth: toolColumnWidth }
+              : styles.toolColumnPhone,
           ]}
         >
           <View style={styles.sectionHeader}>
@@ -681,7 +699,7 @@ const styles = StyleSheet.create({
     gap: spacing.xl,
   },
 
-  dashboardToolsLandscape: {
+  dashboardToolsTablet: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: GRID_GAP,
@@ -692,10 +710,52 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
 
+  toolColumnPhone: {
+    width: "100%",
+    maxWidth: "100%",
+  },
+
   promotionContainer: {
+    width: "100%",
     minWidth: 0,
     borderRadius: theme.radius.lg,
     overflow: "hidden",
+  },
+
+  promotionPlaceholder: {
+    minHeight: 260,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+
+  promotionPlaceholderIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primaryLight,
+  },
+
+  promotionPlaceholderTitle: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    textAlign: "center",
+    fontWeight: "700",
+  },
+
+  promotionPlaceholderText: {
+    ...typography.small,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 19,
   },
 
   quickAccessGrid: {
