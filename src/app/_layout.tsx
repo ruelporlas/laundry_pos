@@ -115,16 +115,20 @@ export default function RootLayout() {
           <View style={styles.errorIcon}>
             <Ionicons name="warning-outline" size={32} color={colors.danger} />
           </View>
+
           <Text style={styles.errorTitle}>Database Initialization Failed</Text>
+
           <Text style={styles.errorSubtitle}>
             The app could not initialize the local database.
           </Text>
+
           <View style={styles.errorCard}>
             <Text style={styles.errorLabel}>Error Details</Text>
             <Text selectable style={styles.errorMessage}>
               {databaseError.message}
             </Text>
           </View>
+
           <Text style={styles.errorHint}>
             Please send this error message so we can fix the database
             initialization or migration.
@@ -155,23 +159,29 @@ function AuthenticatedApp() {
   const pathname = usePathname();
   const router = useRouter();
   const { width } = useWindowDimensions();
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const isTabletLayout = width >= TABLET_BREAKPOINT;
+  const sidebarWidth = sidebarCollapsed
+    ? SIDEBAR_COLLAPSED_WIDTH
+    : SIDEBAR_EXPANDED_WIDTH;
+
   const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
   const isAdminOnlyRoute = ADMIN_ONLY_ROUTES.has(normalizedPathname);
+
+  const tabletTabBarStyle = {
+    width: sidebarWidth,
+    paddingTop: 48,
+    backgroundColor: colors.surface,
+    borderRightColor: colors.border,
+    borderRightWidth: 1,
+  } as const;
 
   const hiddenRouteOptions = {
     href: null,
     tabBarStyle: isTabletLayout
-      ? {
-          width: sidebarCollapsed
-            ? SIDEBAR_COLLAPSED_WIDTH
-            : SIDEBAR_EXPANDED_WIDTH,
-          backgroundColor: colors.surface,
-          borderRightColor: colors.border,
-          borderRightWidth: 1,
-        }
+      ? tabletTabBarStyle
       : { display: "none" as const },
   };
 
@@ -184,126 +194,155 @@ function AuthenticatedApp() {
   }
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarPosition: isTabletLayout ? "left" : "bottom",
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: isTabletLayout
-          ? {
-              width: sidebarCollapsed
-                ? SIDEBAR_COLLAPSED_WIDTH
-                : SIDEBAR_EXPANDED_WIDTH,
-              backgroundColor: colors.surface,
-              borderRightColor: colors.border,
-              borderRightWidth: 1,
-            }
-          : {
-              backgroundColor: colors.surface,
-              borderTopColor: colors.border,
-              borderTopWidth: 1,
-              height: 60 + insets.bottom,
-              paddingTop: spacing.xs,
-              paddingBottom: insets.bottom + spacing.xs,
+    <View style={styles.appContainer}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarPosition: isTabletLayout ? "left" : "bottom",
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textMuted,
+
+          // Only hide labels when the tablet sidebar is collapsed.
+          // Phone navigation keeps its labels.
+          tabBarShowLabel: !isTabletLayout || !sidebarCollapsed,
+
+          tabBarStyle: isTabletLayout
+            ? tabletTabBarStyle
+            : {
+                backgroundColor: colors.surface,
+                borderTopColor: colors.border,
+                borderTopWidth: 1,
+                height: 60 + insets.bottom,
+                paddingTop: spacing.xs,
+                paddingBottom: insets.bottom + spacing.xs,
+              },
+
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: "500",
+          },
+
+          tabBarItemStyle: {
+            paddingVertical: spacing.xs,
+          },
+        }}
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "Dashboard",
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="grid-outline" size={size} color={color} />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+          name="orders"
+          options={{
+            title: "Orders",
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="receipt-outline" size={size} color={color} />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+          name="sales-report"
+          options={{
+            title: "Reports",
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="bar-chart-outline" size={size} color={color} />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+          name="more"
+          options={{
+            title: "More",
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons
+                name="ellipsis-horizontal-circle-outline"
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
+
+        <Tabs.Screen name="products" options={hiddenRouteOptions} />
+        <Tabs.Screen name="services" options={hiddenRouteOptions} />
+        <Tabs.Screen name="bundles" options={hiddenRouteOptions} />
+        <Tabs.Screen name="activity-log" options={hiddenRouteOptions} />
+        <Tabs.Screen name="customers" options={hiddenRouteOptions} />
+        <Tabs.Screen name="settings" options={hiddenRouteOptions} />
+
+        <Tabs.Screen name="add-customer" options={hiddenRouteOptions} />
+        <Tabs.Screen name="customer-details" options={hiddenRouteOptions} />
+        <Tabs.Screen name="edit-customer" options={hiddenRouteOptions} />
+
+        <Tabs.Screen name="add-product" options={hiddenRouteOptions} />
+        <Tabs.Screen name="product-details" options={hiddenRouteOptions} />
+        <Tabs.Screen name="edit-product" options={hiddenRouteOptions} />
+
+        <Tabs.Screen name="add-service" options={hiddenRouteOptions} />
+        <Tabs.Screen name="service-details" options={hiddenRouteOptions} />
+        <Tabs.Screen name="edit-service" options={hiddenRouteOptions} />
+
+        <Tabs.Screen name="add-bundle" options={hiddenRouteOptions} />
+        <Tabs.Screen name="bundle-details" options={hiddenRouteOptions} />
+        <Tabs.Screen name="edit-bundle" options={hiddenRouteOptions} />
+
+        <Tabs.Screen name="new-job-order" options={hiddenRouteOptions} />
+        <Tabs.Screen name="payment" options={hiddenRouteOptions} />
+        <Tabs.Screen name="job-order-created" options={hiddenRouteOptions} />
+
+        <Tabs.Screen name="users" options={hiddenRouteOptions} />
+        <Tabs.Screen name="user-details" options={hiddenRouteOptions} />
+        <Tabs.Screen name="add-user" options={hiddenRouteOptions} />
+        <Tabs.Screen name="edit-user" options={hiddenRouteOptions} />
+
+        <Tabs.Screen name="expenses" options={hiddenRouteOptions} />
+        <Tabs.Screen name="add-expense" options={hiddenRouteOptions} />
+        <Tabs.Screen name="expense-details" options={hiddenRouteOptions} />
+        <Tabs.Screen name="edit-expense" options={hiddenRouteOptions} />
+
+        <Tabs.Screen name="inventory" options={hiddenRouteOptions} />
+        <Tabs.Screen name="inventory-dashboard" options={hiddenRouteOptions} />
+        <Tabs.Screen name="inventory-history" options={hiddenRouteOptions} />
+        <Tabs.Screen name="stock-in" options={hiddenRouteOptions} />
+        <Tabs.Screen name="stock-out" options={hiddenRouteOptions} />
+        <Tabs.Screen name="stock-adjustment" options={hiddenRouteOptions} />
+        <Tabs.Screen name="inventory-settings" options={hiddenRouteOptions} />
+
+        <Tabs.Screen name="login" options={hiddenRouteOptions} />
+      </Tabs>
+
+      {isTabletLayout && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+          }
+          accessibilityHint="Toggles the sidebar between icons only and icons with labels."
+          onPress={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          style={({ pressed }) => [
+            styles.sidebarToggle,
+            {
+              left: sidebarCollapsed ? 20 : SIDEBAR_EXPANDED_WIDTH - 44,
             },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "500",
-        },
-        tabBarItemStyle: {
-          paddingVertical: spacing.xs,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Dashboard",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="grid-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="orders"
-        options={{
-          title: "Orders",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="receipt-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="sales-report"
-        options={{
-          title: "Reports",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="more"
-        options={{
-          title: "More",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons
-              name="ellipsis-horizontal-circle-outline"
-              size={size}
-              color={color}
-            />
-          ),
-        }}
-      />
-
-      <Tabs.Screen name="products" options={hiddenRouteOptions} />
-      <Tabs.Screen name="services" options={hiddenRouteOptions} />
-      <Tabs.Screen name="bundles" options={hiddenRouteOptions} />
-      <Tabs.Screen name="activity-log" options={hiddenRouteOptions} />
-      <Tabs.Screen name="customers" options={hiddenRouteOptions} />
-      <Tabs.Screen name="settings" options={hiddenRouteOptions} />
-
-      <Tabs.Screen name="add-customer" options={hiddenRouteOptions} />
-      <Tabs.Screen name="customer-details" options={hiddenRouteOptions} />
-      <Tabs.Screen name="edit-customer" options={hiddenRouteOptions} />
-
-      <Tabs.Screen name="add-product" options={hiddenRouteOptions} />
-      <Tabs.Screen name="product-details" options={hiddenRouteOptions} />
-      <Tabs.Screen name="edit-product" options={hiddenRouteOptions} />
-
-      <Tabs.Screen name="add-service" options={hiddenRouteOptions} />
-      <Tabs.Screen name="service-details" options={hiddenRouteOptions} />
-      <Tabs.Screen name="edit-service" options={hiddenRouteOptions} />
-
-      <Tabs.Screen name="add-bundle" options={hiddenRouteOptions} />
-      <Tabs.Screen name="bundle-details" options={hiddenRouteOptions} />
-      <Tabs.Screen name="edit-bundle" options={hiddenRouteOptions} />
-
-      <Tabs.Screen name="new-job-order" options={hiddenRouteOptions} />
-      <Tabs.Screen name="payment" options={hiddenRouteOptions} />
-      <Tabs.Screen name="job-order-created" options={hiddenRouteOptions} />
-
-      <Tabs.Screen name="users" options={hiddenRouteOptions} />
-      <Tabs.Screen name="user-details" options={hiddenRouteOptions} />
-      <Tabs.Screen name="add-user" options={hiddenRouteOptions} />
-      <Tabs.Screen name="edit-user" options={hiddenRouteOptions} />
-
-      <Tabs.Screen name="expenses" options={hiddenRouteOptions} />
-      <Tabs.Screen name="add-expense" options={hiddenRouteOptions} />
-      <Tabs.Screen name="expense-details" options={hiddenRouteOptions} />
-      <Tabs.Screen name="edit-expense" options={hiddenRouteOptions} />
-
-      <Tabs.Screen name="inventory" options={hiddenRouteOptions} />
-      <Tabs.Screen name="inventory-dashboard" options={hiddenRouteOptions} />
-      <Tabs.Screen name="inventory-history" options={hiddenRouteOptions} />
-      <Tabs.Screen name="stock-in" options={hiddenRouteOptions} />
-      <Tabs.Screen name="stock-out" options={hiddenRouteOptions} />
-      <Tabs.Screen name="stock-adjustment" options={hiddenRouteOptions} />
-      <Tabs.Screen name="inventory-settings" options={hiddenRouteOptions} />
-
-      <Tabs.Screen name="login" options={hiddenRouteOptions} />
-    </Tabs>
+            pressed && styles.sidebarTogglePressed,
+          ]}
+        >
+          <Ionicons
+            name={sidebarCollapsed ? "chevron-forward" : "chevron-back"}
+            size={20}
+            color={colors.text}
+          />
+        </Pressable>
+      )}
+    </View>
   );
 }
 
@@ -317,11 +356,14 @@ function AccessDeniedScreen({ onReturn }: { onReturn: () => void }) {
           color={colors.danger}
         />
       </View>
+
       <Text style={styles.accessDeniedTitle}>Access Denied</Text>
+
       <Text style={styles.accessDeniedMessage}>
         You do not have permission to manage user accounts. Please contact an
         administrator if you need access.
       </Text>
+
       <Pressable
         accessibilityRole="button"
         onPress={onReturn}
@@ -337,6 +379,29 @@ function AccessDeniedScreen({ onReturn }: { onReturn: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  appContainer: {
+    flex: 1,
+  },
+
+  sidebarToggle: {
+    position: "absolute",
+    top: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    zIndex: 100,
+    elevation: 8,
+  },
+
+  sidebarTogglePressed: {
+    opacity: 0.65,
+  },
+
   loadingContainer: {
     flex: 1,
     alignItems: "center",
@@ -344,16 +409,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     padding: spacing["2xl"],
   },
+
   errorContainer: {
     flex: 1,
     backgroundColor: colors.background,
   },
+
   errorContent: {
     flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: spacing["2xl"],
   },
+
   errorIcon: {
     width: 64,
     height: 64,
@@ -362,6 +430,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.dangerLight,
   },
+
   errorTitle: {
     marginTop: spacing.lg,
     fontSize: 22,
@@ -370,6 +439,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: "center",
   },
+
   errorSubtitle: {
     marginTop: spacing.sm,
     fontSize: 14,
@@ -377,6 +447,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
   },
+
   errorCard: {
     width: "100%",
     marginTop: spacing.xl,
@@ -386,6 +457,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+
   errorLabel: {
     fontSize: 13,
     lineHeight: 18,
@@ -393,11 +465,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
+
   errorMessage: {
     fontSize: 14,
     lineHeight: 21,
     color: colors.danger,
   },
+
   errorHint: {
     marginTop: spacing.lg,
     fontSize: 13,
@@ -405,6 +479,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: "center",
   },
+
   accessDeniedContainer: {
     flex: 1,
     alignItems: "center",
@@ -412,6 +487,7 @@ const styles = StyleSheet.create({
     padding: spacing["2xl"],
     backgroundColor: colors.background,
   },
+
   accessDeniedIcon: {
     width: 76,
     height: 76,
@@ -420,6 +496,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.dangerLight,
   },
+
   accessDeniedTitle: {
     marginTop: spacing.xl,
     fontSize: 24,
@@ -428,6 +505,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: "center",
   },
+
   accessDeniedMessage: {
     maxWidth: 420,
     marginTop: spacing.md,
@@ -436,6 +514,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
   },
+
   accessDeniedButton: {
     minHeight: 48,
     alignItems: "center",
@@ -445,9 +524,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.primary,
   },
+
   accessDeniedButtonPressed: {
     opacity: 0.75,
   },
+
   accessDeniedButtonText: {
     fontSize: 15,
     fontWeight: "600",
