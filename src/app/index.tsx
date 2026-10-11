@@ -114,6 +114,7 @@ export default function POSScreen() {
   const { user } = useAuth();
 
   const [viewportWidth, setViewportWidth] = useState(0);
+
   const [report, setReport] = useState<SalesReport | null>(null);
   const [loadingReport, setLoadingReport] = useState(true);
   const [promotion, setPromotion] = useState<Promotion | null>(null);
@@ -122,29 +123,18 @@ export default function POSScreen() {
   const [loadingSettings, setLoadingSettings] = useState(true);
 
   const actualViewportWidth = viewportWidth || width;
-  const isTablet = Math.min(width, height) >= TABLET_MIN_DIMENSION;
-  const isLandscapeTablet = isTablet && width > height;
-
   const contentWidth = Math.min(actualViewportWidth, MAX_CONTENT_WIDTH);
   const availableWidth = Math.max(0, contentWidth - PAGE_PADDING * 2);
 
-  // The two tablet sections share the available width equally,
-  // accounting for the gap between them.
-  const tabletColumnWidth = Math.max(0, (availableWidth - GRID_GAP) / 2);
+  const isTablet = Math.min(width, height) >= TABLET_MIN_DIMENSION;
+  const isLandscapeTablet = isTablet && width > height;
 
-  // Always use two columns for the four Performance cards,
-  // in both tablet portrait and landscape.
-  const summaryColumns = 2;
-
-  // Calculate card width from the actual width of the Performance column.
-  const performanceCardWidth = Math.max(
-    0,
-    (tabletColumnWidth - GRID_GAP * (summaryColumns - 1)) / summaryColumns,
-  );
-
+  // On tablets, card widths are percentages of the actual Performance
+  // grid, not calculations based on the full screen width.
   const phoneCardWidth = Math.max(0, (availableWidth - GRID_GAP) / 2);
 
   const quickAccessColumns = 4;
+
   const quickAccessCardWidth = Math.max(
     0,
     (availableWidth - GRID_GAP * (quickAccessColumns - 1)) / quickAccessColumns,
@@ -212,6 +202,7 @@ export default function POSScreen() {
   const displayName = getDisplayName(user);
   const summary = report?.summary;
   const configuredShopName = settings?.shopName?.trim();
+
   const shopName = loadingSettings
     ? "Loading shop..."
     : configuredShopName || "Your Shop";
@@ -238,7 +229,7 @@ export default function POSScreen() {
           description="Net sales today"
           icon="trending-up-outline"
           accent="primary"
-          width={isTablet ? performanceCardWidth : phoneCardWidth}
+          width={isTablet ? "48%" : phoneCardWidth}
         />
 
         <SummaryCard
@@ -247,7 +238,7 @@ export default function POSScreen() {
           description="Payments received"
           icon="cash-outline"
           accent="success"
-          width={isTablet ? performanceCardWidth : phoneCardWidth}
+          width={isTablet ? "48%" : phoneCardWidth}
         />
 
         <SummaryCard
@@ -256,7 +247,7 @@ export default function POSScreen() {
           description="Remaining balance"
           icon="time-outline"
           accent="warning"
-          width={isTablet ? performanceCardWidth : phoneCardWidth}
+          width={isTablet ? "48%" : phoneCardWidth}
         />
 
         <SummaryCard
@@ -265,7 +256,7 @@ export default function POSScreen() {
           description="Recorded today"
           icon="wallet-outline"
           accent="danger"
-          width={isTablet ? performanceCardWidth : phoneCardWidth}
+          width={isTablet ? "48%" : phoneCardWidth}
         />
       </View>
     </View>
@@ -304,7 +295,9 @@ export default function POSScreen() {
                 color={colors.primary}
               />
             </View>
+
             <Text style={styles.promotionPlaceholderTitle}>Promotions</Text>
+
             <Text style={styles.promotionPlaceholderText}>
               No promotion is available right now. Published offers will appear
               here automatically.
@@ -351,6 +344,7 @@ export default function POSScreen() {
               <Text style={styles.brandTitle} numberOfLines={2}>
                 {shopName}
               </Text>
+
               <Text style={styles.brandSubtitle}>BUSINESS DASHBOARD</Text>
             </View>
           </View>
@@ -373,7 +367,9 @@ export default function POSScreen() {
           ]}
         >
           <Ionicons name="add-circle-outline" size={23} color={colors.white} />
+
           <Text style={styles.createButtonText}>Create New Job Order</Text>
+
           <Ionicons name="arrow-forward" size={18} color={colors.white} />
         </Pressable>
       </View>
@@ -457,7 +453,7 @@ function SummaryCard({
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
   accent: "primary" | "success" | "warning" | "danger";
-  width: number;
+  width: number | `${number}%`;
 }) {
   const accentColor =
     accent === "danger"
