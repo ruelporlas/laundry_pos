@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -19,6 +19,18 @@ import {
   type JobOrderListItem,
 } from "@/repositories/jobOrderRepository";
 
+function getLocalDateKey(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
@@ -31,9 +43,7 @@ function formatCurrency(value: number): string {
 function formatDate(value: string): string {
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
+  if (Number.isNaN(date.getTime())) return value;
 
   return new Intl.DateTimeFormat("en-PH", {
     month: "short",
@@ -97,39 +107,34 @@ export function RecentJobOrders() {
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
 
-  useEffect(() => {
-    let active = true;
+  const loadOrders = useCallback(async () => {
+    try {
+      setLoading(true);
+      setLoadFailed(false);
 
-    async function loadOrders() {
-      try {
-        setLoading(true);
-        setLoadFailed(false);
+      const result = await getJobOrders();
+      const today = getLocalDateKey(new Date());
 
-        const result = await getJobOrders();
+      const todaysOrders = result.filter(
+        (order) =>
+          !order.isVoided && getLocalDateKey(order.createdAt) === today,
+      );
 
-        if (active) {
-          setOrders(result.filter((order) => !order.isVoided).slice(0, 8));
-        }
-      } catch (error) {
-        console.error("Failed to load recent job orders:", error);
-
-        if (active) {
-          setLoadFailed(true);
-          setOrders([]);
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
+      setOrders(todaysOrders);
+    } catch (error) {
+      console.error("Failed to load today's job orders:", error);
+      setLoadFailed(true);
+      setOrders([]);
+    } finally {
+      setLoading(false);
     }
-
-    void loadOrders();
-
-    return () => {
-      active = false;
-    };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadOrders();
+    }, [loadOrders]),
+  );
 
   function openOrder(order: JobOrderListItem) {
     router.push({
@@ -146,8 +151,15 @@ export function RecentJobOrders() {
         </View>
 
         <View style={styles.headerText}>
-          <Text style={styles.title}>Recent Job Orders</Text>
-          <Text style={styles.subtitle}>Your latest customer transactions</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Today's Job Orders</Text>
+            {!loading && !loadFailed && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countText}>{orders.length}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.subtitle}>Job orders recorded today</Text>
         </View>
 
         <Pressable
@@ -166,7 +178,7 @@ export function RecentJobOrders() {
       {loading ? (
         <View style={styles.message}>
           <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={styles.messageText}>Loading recent orders...</Text>
+          <Text style={styles.messageText}>Loading today's job orders...</Text>
         </View>
       ) : loadFailed ? (
         <View style={styles.message}>
@@ -186,9 +198,9 @@ export function RecentJobOrders() {
             size={30}
             color={colors.textMuted}
           />
-          <Text style={styles.emptyTitle}>No job orders yet</Text>
+          <Text style={styles.emptyTitle}>No job orders today</Text>
           <Text style={styles.messageText}>
-            New customer transactions will appear here.
+            Job orders created today will appear here.
           </Text>
         </View>
       ) : isPhone ? (
@@ -378,9 +390,32 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
 
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+
   title: {
     ...typography.h3,
     color: colors.text,
+  },
+
+  countBadge: {
+    minWidth: 26,
+    height: 26,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 13,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  countText: {
+    ...typography.small,
+    color: colors.primary,
+    fontWeight: "800",
   },
 
   subtitle: {

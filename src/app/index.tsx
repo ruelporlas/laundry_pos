@@ -394,29 +394,6 @@ export default function POSScreen() {
         <RecentJobOrders />
       </View>
 
-      <View style={styles.todayOrdersSection}>
-        <View style={styles.todayOrdersCard}>
-          <View style={styles.todayOrdersIcon}>
-            <Ionicons name="receipt-outline" size={24} color={colors.primary} />
-          </View>
-
-          <View style={styles.todayOrdersText}>
-            <Text style={styles.todayOrdersLabel}>Today's Job Orders</Text>
-            <Text style={styles.todayOrdersDescription}>
-              Total job orders recorded today
-            </Text>
-          </View>
-
-          {loadingReport ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Text style={styles.todayOrdersValue}>
-              {summary?.jobOrderCount ?? 0}
-            </Text>
-          )}
-        </View>
-      </View>
-
       <View style={styles.quickAccessSection}>
         <View style={styles.sectionHeader}>
           <View style={styles.sectionHeaderText}>
