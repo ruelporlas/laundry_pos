@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { RecentJobOrders } from "@/components/dashboard/RecentJobOrders";
 import { PromotionCard } from "@/components/promotions/PromotionCard";
@@ -19,11 +20,13 @@ import { theme } from "@/constants/theme";
 import { typography } from "@/constants/typography";
 import { useAuth } from "@/context/AuthContext";
 import type { Promotion } from "@/models/promotion";
+import type { AppSettings } from "@/models/settings";
 import {
   getSalesReport,
   type SalesReport,
   type SalesReportDateRange,
 } from "@/repositories/reportRepository";
+import { getAppSettings } from "@/repositories/settingsRepository";
 import { getPromotions } from "@/services/promotionService";
 
 type QuickAccessItem = {
@@ -61,8 +64,8 @@ const quickAccessItems: QuickAccessItem[] = [
 ];
 
 const MAX_CONTENT_WIDTH = 1440;
-const PAGE_PADDING = 20;
-const GRID_GAP = 14;
+const PAGE_PADDING = 16;
+const GRID_GAP = 12;
 
 function getTodayDate(): string {
   const now = new Date();
@@ -105,6 +108,7 @@ function getDisplayName(
 
 export default function POSScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { user } = useAuth();
 
@@ -112,6 +116,8 @@ export default function POSScreen() {
   const [loadingReport, setLoadingReport] = useState(true);
   const [promotion, setPromotion] = useState<Promotion | null>(null);
   const [loadingPromotion, setLoadingPromotion] = useState(true);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [loadingSettings, setLoadingSettings] = useState(true);
 
   const isTablet = width >= 768;
   const isLandscapeTablet = isTablet && width > height;
@@ -126,7 +132,7 @@ export default function POSScreen() {
   const toolColumnWidth =
     (availableWidth - GRID_GAP * (toolColumns - 1)) / toolColumns;
 
-  const quickAccessColumns = isLandscapeTablet ? 2 : 2;
+  const quickAccessColumns = 2;
   const quickAccessCardWidth =
     (toolColumnWidth - GRID_GAP * (quickAccessColumns - 1)) /
     quickAccessColumns;
@@ -170,15 +176,32 @@ export default function POSScreen() {
     }
   }, []);
 
+  const loadSettings = useCallback(async () => {
+    try {
+      setLoadingSettings(true);
+      setSettings(await getAppSettings());
+    } catch (error) {
+      console.error("Failed to load dashboard shop settings:", error);
+      setSettings(null);
+    } finally {
+      setLoadingSettings(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void loadTodayReport();
       void loadPromotion();
-    }, [loadTodayReport, loadPromotion]),
+      void loadSettings();
+    }, [loadTodayReport, loadPromotion, loadSettings]),
   );
 
   const displayName = getDisplayName(user);
   const summary = report?.summary;
+  const configuredShopName = settings?.shopName?.trim();
+  const shopName = loadingSettings
+    ? "Loading shop..."
+    : configuredShopName || "Your Shop";
 
   return (
     <ScrollView
@@ -190,6 +213,8 @@ export default function POSScreen() {
           width: "100%",
           alignSelf: "center",
           paddingHorizontal: PAGE_PADDING,
+          paddingTop: insets.top + spacing.md,
+          paddingBottom: Math.max(insets.bottom, spacing["2xl"]),
         },
       ]}
       showsVerticalScrollIndicator={false}
@@ -201,11 +226,13 @@ export default function POSScreen() {
         <View style={styles.headerMain}>
           <View style={styles.brandRow}>
             <View style={styles.brandIcon}>
-              <Ionicons name="shirt-outline" size={24} color={colors.primary} />
+              <Ionicons name="shirt-outline" size={26} color={colors.primary} />
             </View>
 
             <View style={styles.brandTextContainer}>
-              <Text style={styles.brandTitle}>Laundry POS</Text>
+              <Text style={styles.brandTitle} numberOfLines={2}>
+                {shopName}
+              </Text>
               <Text style={styles.brandSubtitle}>BUSINESS DASHBOARD</Text>
             </View>
           </View>
@@ -228,9 +255,7 @@ export default function POSScreen() {
           ]}
         >
           <Ionicons name="add-circle-outline" size={23} color={colors.white} />
-
           <Text style={styles.createButtonText}>Create New Job Order</Text>
-
           <Ionicons name="arrow-forward" size={18} color={colors.white} />
         </Pressable>
       </View>
@@ -296,7 +321,7 @@ export default function POSScreen() {
         />
       </View>
 
-      {/* Recent Job Orders */}
+      {/* Recent job orders */}
       <View style={styles.recentOrdersSection}>
         <RecentJobOrders />
       </View>
@@ -440,7 +465,7 @@ const styles = StyleSheet.create({
   },
 
   contentContainer: {
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
     paddingBottom: spacing["3xl"],
   },
 
@@ -463,18 +488,19 @@ const styles = StyleSheet.create({
 
   headerMain: {
     flex: 1,
+    minWidth: 0,
   },
 
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
 
   brandIcon: {
-    width: 46,
-    height: 46,
+    width: 48,
+    height: 48,
     borderRadius: 15,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
@@ -483,10 +509,13 @@ const styles = StyleSheet.create({
 
   brandTextContainer: {
     flex: 1,
+    minWidth: 0,
   },
 
   brandTitle: {
-    ...typography.h3,
+    fontSize: 25,
+    lineHeight: 31,
+    fontWeight: "700",
     color: colors.text,
   },
 
@@ -495,7 +524,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 10,
     letterSpacing: 1.1,
-    marginTop: 2,
+    marginTop: 3,
   },
 
   welcomeText: {
@@ -516,7 +545,7 @@ const styles = StyleSheet.create({
   },
 
   createButton: {
-    minHeight: 54,
+    minHeight: 52,
     borderRadius: theme.radius.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
@@ -571,7 +600,7 @@ const styles = StyleSheet.create({
   },
 
   summaryCard: {
-    minHeight: 164,
+    minHeight: 148,
     backgroundColor: colors.surface,
     borderRadius: theme.radius.lg,
     padding: spacing.md,
@@ -580,12 +609,12 @@ const styles = StyleSheet.create({
   },
 
   summaryIcon: {
-    width: 42,
-    height: 42,
+    width: 40,
+    height: 40,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
 
   summaryLabel: {
@@ -638,7 +667,7 @@ const styles = StyleSheet.create({
   },
 
   quickAccessCard: {
-    minHeight: 164,
+    minHeight: 150,
     backgroundColor: colors.surface,
     borderRadius: theme.radius.lg,
     padding: spacing.md,
@@ -647,13 +676,13 @@ const styles = StyleSheet.create({
   },
 
   quickAccessIcon: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: 14,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
 
   quickAccessTitle: {
