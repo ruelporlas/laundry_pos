@@ -19,11 +19,16 @@ import { theme } from "@/constants/theme";
 import { typography } from "@/constants/typography";
 import { useAuth } from "@/context/AuthContext";
 
+// TEMPORARY LOGIN PREFILL.
+// Remove these defaults before production builds.
+const DEV_LOGIN_USERNAME = "default-admin";
+const DEV_LOGIN_PASSWORD = "default-adminpassword654321!";
+
 export default function LoginScreen() {
   const { login, loading } = useAuth();
 
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState(DEV_LOGIN_USERNAME);
+  const [password, setPassword] = useState(DEV_LOGIN_PASSWORD);
 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +41,7 @@ export default function LoginScreen() {
     setError(null);
 
     try {
-      await login(username, password);
+      await login(username.trim(), password);
     } catch (loginError) {
       console.error("Login failed:", loginError);
 
@@ -62,7 +67,6 @@ export default function LoginScreen() {
           </View>
 
           <Text style={styles.title}>Laundry POS</Text>
-
           <Text style={styles.subtitle}>Sign in to continue</Text>
 
           <View style={styles.form}>
@@ -73,7 +77,6 @@ export default function LoginScreen() {
                   size={20}
                   color={colors.danger}
                 />
-
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
@@ -132,6 +135,10 @@ export default function LoginScreen() {
                   hitSlop={10}
                   onPress={() => setShowPassword((current) => !current)}
                   disabled={loading}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    showPassword ? "Hide password" : "Show password"
+                  }
                 >
                   <Ionicons
                     name={showPassword ? "eye-off-outline" : "eye-outline"}
@@ -150,6 +157,7 @@ export default function LoginScreen() {
               ]}
               onPress={handleLogin}
               disabled={loading}
+              accessibilityRole="button"
             >
               {loading ? (
                 <ActivityIndicator size="small" color={colors.white} />
@@ -178,6 +186,10 @@ export default function LoginScreen() {
               Your account credentials are securely protected.
             </Text>
           </View>
+
+          <Text style={styles.devNote}>
+            Temporary login defaults are enabled.
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -311,6 +323,13 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginLeft: spacing.sm,
     textAlign: "center",
+  },
+
+  devNote: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: spacing.md,
   },
 
   pressed: {

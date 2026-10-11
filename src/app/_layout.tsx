@@ -18,6 +18,7 @@ import { colors } from "@/constants/colors";
 import { spacing } from "@/constants/spacing";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { checkDatabase, runMigrations } from "@/database";
+import { seedDemoData } from "@/database/seedDemoData";
 import { registerActions } from "@/hooks/registerActions";
 
 import LoginScreen from "./login";
@@ -69,8 +70,10 @@ export default function RootLayout() {
 
     async function initializeDatabase() {
       try {
+        // 1. Create or update the database tables.
         await runMigrations();
 
+        // 2. Verify that the database is healthy.
         const isHealthy = await checkDatabase();
 
         if (!isHealthy) {
@@ -79,12 +82,19 @@ export default function RootLayout() {
           );
         }
 
+        // 3. Seed the requested demo records.
+        // The seeder is responsible for checking whether the database
+        // is empty before inserting any sample data.
+        await seedDemoData();
+
         console.log(
-          "Database OK — version 15 — customers, products, services, bundles, bundle items, Job Orders, payments, users, expenses, audit logs, inventory, app settings, and promotion cache tables exist",
+          "Database OK — migrations, health check, and demo data seeding completed.",
         );
 
+        // 4. Register app actions after database initialization.
         registerActions();
 
+        // 5. Allow the app to render.
         if (mounted) {
           setDatabaseReady(true);
         }
@@ -101,7 +111,7 @@ export default function RootLayout() {
       }
     }
 
-    initializeDatabase();
+    void initializeDatabase();
 
     return () => {
       mounted = false;
@@ -134,7 +144,8 @@ export default function RootLayout() {
           </View>
 
           <Text style={styles.errorHint}>
-            Please send this error message so we can fix the database migration.
+            Please send this error message so we can fix the database
+            initialization or migration.
           </Text>
         </ScrollView>
       </View>
@@ -185,9 +196,7 @@ function AuthenticatedApp() {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-
           height: 60 + insets.bottom,
-
           paddingTop: spacing.xs,
           paddingBottom: insets.bottom + spacing.xs,
         },
