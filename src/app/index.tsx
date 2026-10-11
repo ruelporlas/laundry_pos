@@ -132,10 +132,7 @@ export default function POSScreen() {
   const toolColumnWidth =
     (availableWidth - GRID_GAP * (toolColumns - 1)) / toolColumns;
 
-  const quickAccessColumns = 2;
-  const quickAccessCardWidth =
-    (toolColumnWidth - GRID_GAP * (quickAccessColumns - 1)) /
-    quickAccessColumns;
+  const quickAccessCardWidth = (toolColumnWidth - GRID_GAP) / 2;
 
   const loadTodayReport = useCallback(async () => {
     try {
@@ -333,29 +330,56 @@ export default function POSScreen() {
           isLandscapeTablet && styles.dashboardToolsLandscape,
         ]}
       >
-        {!loadingPromotion && promotion && (
-          <View style={[styles.toolColumn, { width: toolColumnWidth }]}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderText}>
-                <Text style={styles.sectionTitle}>Promotions</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Featured offers for your customers
-                </Text>
-              </View>
+        {/* Promotions remains visible even when no promotion is available. */}
+        <View style={[styles.toolColumn, { width: toolColumnWidth }]}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionHeaderText}>
+              <Text style={styles.sectionTitle}>Promotions</Text>
+              <Text style={styles.sectionSubtitle}>
+                Featured offers for your customers
+              </Text>
             </View>
 
+            {loadingPromotion && (
+              <ActivityIndicator size="small" color={colors.primary} />
+            )}
+          </View>
+
+          {loadingPromotion ? (
+            <View style={styles.promotionEmptyState}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.promotionEmptyText}>
+                Loading promotions...
+              </Text>
+            </View>
+          ) : promotion ? (
             <View style={styles.promotionContainer}>
               <PromotionCard promotion={promotion} />
             </View>
-          </View>
-        )}
+          ) : (
+            <View style={styles.promotionEmptyState}>
+              <View style={styles.promotionEmptyIcon}>
+                <Ionicons
+                  name="pricetag-outline"
+                  size={28}
+                  color={colors.textMuted}
+                />
+              </View>
+              <Text style={styles.promotionEmptyTitle}>
+                No promotions available
+              </Text>
+              <Text style={styles.promotionEmptyText}>
+                Enable promotions or add an offer to feature it here.
+              </Text>
+            </View>
+          )}
+        </View>
 
+        {/* Quick access */}
         <View
           style={[
             styles.toolColumn,
-            !loadingPromotion && promotion
-              ? { width: toolColumnWidth }
-              : { width: "100%" },
+            isLandscapeTablet ? { width: toolColumnWidth } : { width: "100%" },
           ]}
         >
           <View style={styles.sectionHeader}>
@@ -658,6 +682,41 @@ const styles = StyleSheet.create({
   promotionContainer: {
     borderRadius: theme.radius.lg,
     overflow: "hidden",
+  },
+
+  promotionEmptyState: {
+    minHeight: 160,
+    padding: spacing.xl,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  promotionEmptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+  },
+
+  promotionEmptyTitle: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    textAlign: "center",
+  },
+
+  promotionEmptyText: {
+    ...typography.small,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 19,
+    marginTop: spacing.xs,
   },
 
   quickAccessGrid: {
