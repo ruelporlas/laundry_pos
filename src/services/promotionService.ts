@@ -1,22 +1,16 @@
 import type { Promotion } from "@/models/promotion";
 import {
-    getPromotionCache,
-    savePromotionCache,
-    type PromotionCache,
+  getPromotionCache,
+  savePromotionCache,
+  type PromotionCache,
 } from "@/repositories/promotionRepository";
 import { API_CONFIG } from "../config/api";
 
 const PROMOTIONS_ENDPOINT = `${API_CONFIG.baseUrl}/wp-json/laundry-pos/v1/promotions`;
 
-// 12 hours.
-//const CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
-
-// 6 hours.
-const CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
-
 type PromotionApiResponse = {
-  enabled: boolean;
-  promotions: Promotion[];
+  enabled?: boolean;
+  promotions?: Promotion[];
 };
 
 export type PromotionResult = {
@@ -26,22 +20,37 @@ export type PromotionResult = {
   isFromCache: boolean;
 };
 
-function isCacheFresh(cache: PromotionCache): boolean {
-  const fetchedAt = new Date(cache.fetchedAt).getTime();
-
-  if (Number.isNaN(fetchedAt)) {
-    return false;
+function normalizeApiResponse(data: unknown): {
+  enabled: boolean;
+  promotions: Promotion[];
+} {
+  if (!data || typeof data !== "object") {
+    throw new Error("Invalid promotions API response.");
   }
 
-  return Date.now() - fetchedAt < CACHE_MAX_AGE_MS;
-}
+  const response = data as PromotionApiResponse;
 
-function normalizeApiResponse(
-  data: PromotionApiResponse,
-): PromotionApiResponse {
+  if (typeof response.enabled !== "boolean") {
+    throw new Error("Promotions API response is missing the enabled flag.");
+  }
+
+  if (!Array.isArray(response.promotions)) {
+    throw new Error("Promotions API response is missing the promotions array.");
+  }
+
+  const promotions = response.promotions.filter(
+    (item): item is Promotion =>
+      !!item &&
+      typeof item === "object" &&
+      typeof item.id === "number" &&
+      typeof item.title === "string" &&
+      typeof item.description === "string" &&
+      typeof item.businessName === "string",
+  );
+
   return {
-    enabled: data.enabled === true,
-    promotions: Array.isArray(data.promotions) ? data.promotions : [],
+    enabled: response.enabled,
+    promotions,
   };
 }
 
@@ -54,13 +63,11 @@ async function fetchPromotionsFromServer(): Promise<PromotionCache> {
   });
 
   if (!response.ok) {
-    throw new Error(`Promotion API request failed: ${response.status}`);
+    throw new Error(`Promotion API request failed: HTTP ${response.status}`);
   }
 
-  const data = (await response.json()) as PromotionApiResponse;
-
+  const data: unknown = await response.json();
   const normalized = normalizeApiResponse(data);
-
   const fetchedAt = new Date().toISOString();
 
   await savePromotionCache(
@@ -68,6 +75,12 @@ async function fetchPromotionsFromServer(): Promise<PromotionCache> {
     normalized.promotions,
     fetchedAt,
   );
+
+  console.info("Promotions loaded from server:", {
+    enabled: normalized.enabled,
+    count: normalized.promotions.length,
+    ids: normalized.promotions.map((item) => item.id),
+  });
 
   return {
     enabled: normalized.enabled,
@@ -77,21 +90,8 @@ async function fetchPromotionsFromServer(): Promise<PromotionCache> {
 }
 
 export async function getPromotions(): Promise<PromotionResult> {
-  const cache = await getPromotionCache();
-
-  if (cache) {
-    if (!isCacheFresh(cache)) {
-      void refreshPromotions();
-    }
-
-    return {
-      enabled: cache.enabled,
-      promotions: cache.promotions,
-      fetchedAt: cache.fetchedAt,
-      isFromCache: true,
-    };
-  }
-
+  // Always check the server first so a stale empty cache cannot hide
+  // a promotion that has since been published.
   try {
     const fresh = await fetchPromotionsFromServer();
 
@@ -102,7 +102,30 @@ export async function getPromotions(): Promise<PromotionResult> {
       isFromCache: false,
     };
   } catch (error) {
-    console.error("Failed to load promotions:", error);
+    console.error("Failed to load promotions from server:", error);
+
+    // If the server is unavailable, keep the app usable with cached data.
+    try {
+      const cache = await getPromotionCache();
+
+      if (cache) {
+        console.warn("Using cached promotions as a fallback:", {
+          enabled: cache.enabled,
+          count: cache.promotions.length,
+          fetchedAt: cache.fetchedAt,
+          ids: cache.promotions.map((item) => item.id),
+        });
+
+        return {
+          enabled: cache.enabled,
+          promotions: cache.promotions,
+          fetchedAt: cache.fetchedAt,
+          isFromCache: true,
+        };
+      }
+    } catch (cacheError) {
+      console.error("Failed to read cached promotions:", cacheError);
+    }
 
     return {
       enabled: false,
@@ -114,34 +137,5 @@ export async function getPromotions(): Promise<PromotionResult> {
 }
 
 export async function refreshPromotions(): Promise<PromotionResult> {
-  try {
-    const fresh = await fetchPromotionsFromServer();
-
-    return {
-      enabled: fresh.enabled,
-      promotions: fresh.promotions,
-      fetchedAt: fresh.fetchedAt,
-      isFromCache: false,
-    };
-  } catch (error) {
-    console.error("Failed to refresh promotions:", error);
-
-    const cache = await getPromotionCache();
-
-    if (cache) {
-      return {
-        enabled: cache.enabled,
-        promotions: cache.promotions,
-        fetchedAt: cache.fetchedAt,
-        isFromCache: true,
-      };
-    }
-
-    return {
-      enabled: false,
-      promotions: [],
-      fetchedAt: null,
-      isFromCache: false,
-    };
-  }
+  return getPromotions();
 }
