@@ -13,7 +13,6 @@ import {
 } from "react-native";
 
 import { AppButton } from "@/components/ui/AppButton";
-import { AppCard } from "@/components/ui/AppCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -36,11 +35,17 @@ export default function ProductsScreen() {
   const { width } = useWindowDimensions();
 
   const isTablet = width >= 768;
-  const contentWidth = Math.min(width, MAX_CONTENT_WIDTH);
-  const availableWidth = contentWidth - PAGE_PADDING * 2;
 
-  // Keep two columns on tablets; make sure the OUTER card wrapper
-  // receives the calculated width, not just AppCard's inner View.
+  // Measure the actual page frame, which may be narrower than the device.
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  const contentWidth = Math.min(
+    containerWidth > 0 ? containerWidth : width,
+    MAX_CONTENT_WIDTH,
+  );
+
+  const availableWidth = Math.max(0, contentWidth - PAGE_PADDING * 2);
+
   const cardWidth = isTablet
     ? Math.max(0, (availableWidth - GRID_GAP) / 2)
     : undefined;
@@ -105,14 +110,25 @@ export default function ProductsScreen() {
 
   const renderProduct = useCallback(
     ({ item }: { item: Product }) => (
-      <View style={[styles.productItem, isTablet && { width: cardWidth }]}>
-        <AppCard
-          onPress={() =>
-            router.push({
-              pathname: "/product-details",
-              params: { id: item.id.toString() },
-            })
-          }
+      <Pressable
+        onPress={() =>
+          router.push({
+            pathname: "/product-details",
+            params: { id: item.id.toString() },
+          })
+        }
+        accessibilityRole="button"
+        accessibilityLabel={`View product ${item.name}`}
+        style={({ pressed }) => [
+          styles.productItem,
+          isTablet &&
+            cardWidth !== undefined && {
+              width: cardWidth,
+            },
+          pressed && styles.pressed,
+        ]}
+      >
+        <View
           style={[styles.productCard, isTablet && styles.productCardTablet]}
         >
           <View style={styles.productIcon}>
@@ -144,8 +160,8 @@ export default function ProductsScreen() {
             color={colors.textMuted}
             style={styles.chevron}
           />
-        </AppCard>
-      </View>
+        </View>
+      </Pressable>
     ),
     [cardWidth, isTablet],
   );
@@ -235,7 +251,15 @@ export default function ProductsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={(event) => {
+        const measuredWidth = event.nativeEvent.layout.width;
+        setContainerWidth((previous) =>
+          previous === measuredWidth ? previous : measuredWidth,
+        );
+      }}
+    >
       <FlatList
         key={isTablet ? "tablet-grid" : "phone-list"}
         data={filteredProducts}
@@ -291,6 +315,7 @@ export default function ProductsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: colors.background,
   },
 
@@ -328,6 +353,7 @@ const styles = StyleSheet.create({
 
   searchInput: {
     flex: 1,
+    minWidth: 0,
     marginLeft: spacing.sm,
     paddingVertical: 0,
     ...typography.body,
@@ -370,21 +396,26 @@ const styles = StyleSheet.create({
 
   columnWrapper: {
     justifyContent: "space-between",
-    gap: GRID_GAP,
     marginBottom: GRID_GAP,
   },
 
-  // This wrapper controls the width of the clickable grid item.
+  // The measured width is applied to the clickable element itself.
   productItem: {
     width: "100%",
+    minWidth: 0,
+    borderRadius: theme.radius.lg,
+    marginBottom: spacing.md,
   },
 
   productCard: {
     width: "100%",
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     minHeight: 76,
-    marginBottom: spacing.md,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: theme.radius.lg,
   },
 
   productCardTablet: {
@@ -419,8 +450,9 @@ const styles = StyleSheet.create({
   },
 
   productRight: {
+    flexShrink: 0,
     alignItems: "flex-end",
-    marginRight: spacing.sm,
+    marginRight: spacing.xs,
   },
 
   price: {
@@ -430,6 +462,7 @@ const styles = StyleSheet.create({
   },
 
   chevron: {
+    flexShrink: 0,
     marginLeft: spacing.xs,
   },
 
@@ -461,7 +494,8 @@ const styles = StyleSheet.create({
   },
 
   pressed: {
-    opacity: 0.8,
+    opacity: 0.88,
+    transform: [{ scale: 0.995 }],
   },
 
   refreshError: {

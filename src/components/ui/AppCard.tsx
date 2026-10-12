@@ -14,7 +14,10 @@ type AppCardProps = {
   children: React.ReactNode;
   onPress?: () => void;
   padding?: number;
+  /** Styles applied to the inner card surface. */
   style?: StyleProp<ViewStyle>;
+  /** Styles applied to the outer layout/touchable container. */
+  outerStyle?: StyleProp<ViewStyle>;
 };
 
 export function AppCard({
@@ -22,6 +25,7 @@ export function AppCard({
   onPress,
   padding = spacing.lg,
   style,
+  outerStyle,
 }: AppCardProps) {
   const content = (
     <View style={[styles.card, { padding }, style]}>{children}</View>
@@ -31,24 +35,30 @@ export function AppCard({
     return (
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
+        style={({ pressed }) => [
+          styles.pressable,
+          outerStyle,
+          pressed && styles.pressed,
+        ]}
       >
         {content}
       </Pressable>
     );
   }
 
-  return content;
+  return <View style={outerStyle}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: theme.radius.lg,
+    minWidth: 0,
   },
 
   pressable: {
     borderRadius: theme.radius.lg,
+    minWidth: 0,
   },
 
   pressed: {
