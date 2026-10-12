@@ -37,9 +37,10 @@ export default function ProductsScreen() {
 
   const isTablet = width >= 768;
   const contentWidth = Math.min(width, MAX_CONTENT_WIDTH);
-
   const availableWidth = contentWidth - PAGE_PADDING * 2;
 
+  // Keep two columns on tablets; make sure the OUTER card wrapper
+  // receives the calculated width, not just AppCard's inner View.
   const cardWidth = isTablet
     ? Math.max(0, (availableWidth - GRID_GAP) / 2)
     : undefined;
@@ -53,13 +54,10 @@ export default function ProductsScreen() {
   const loadProducts = useCallback(async () => {
     try {
       setError(null);
-
       const result = await getProducts();
-
       setProducts(result);
     } catch (error) {
       console.error("Failed to load products:", error);
-
       setError(
         error instanceof Error ? error.message : "Unable to load products.",
       );
@@ -79,13 +77,10 @@ export default function ProductsScreen() {
 
     try {
       setError(null);
-
       const result = await getProducts();
-
       setProducts(result);
     } catch (error) {
       console.error("Failed to refresh products:", error);
-
       setError(
         error instanceof Error ? error.message : "Unable to refresh products.",
       );
@@ -101,62 +96,56 @@ export default function ProductsScreen() {
       return products;
     }
 
-    return products.filter((product) => {
-      return (
+    return products.filter(
+      (product) =>
         product.name.toLowerCase().includes(query) ||
-        product.description.toLowerCase().includes(query)
-      );
-    });
+        product.description.toLowerCase().includes(query),
+    );
   }, [products, search]);
 
   const renderProduct = useCallback(
     ({ item }: { item: Product }) => (
-      <AppCard
-        onPress={() =>
-          router.push({
-            pathname: "/product-details",
-            params: {
-              id: item.id.toString(),
-            },
-          })
-        }
-        style={[
-          styles.productCard,
-          isTablet && {
-            width: cardWidth,
-          },
-        ]}
-      >
-        <View style={styles.productIcon}>
-          <Ionicons name="cube-outline" size={22} color={colors.primary} />
-        </View>
+      <View style={[styles.productItem, isTablet && { width: cardWidth }]}>
+        <AppCard
+          onPress={() =>
+            router.push({
+              pathname: "/product-details",
+              params: { id: item.id.toString() },
+            })
+          }
+          style={[styles.productCard, isTablet && styles.productCardTablet]}
+        >
+          <View style={styles.productIcon}>
+            <Ionicons name="cube-outline" size={22} color={colors.primary} />
+          </View>
 
-        <View style={styles.productInfo}>
-          <Text style={styles.productName} numberOfLines={1}>
-            {item.name}
-          </Text>
+          <View style={styles.productInfo}>
+            <Text style={styles.productName} numberOfLines={1}>
+              {item.name}
+            </Text>
 
-          <Text style={styles.description} numberOfLines={1}>
-            {item.description || "No description"}
-          </Text>
-        </View>
+            <Text style={styles.description} numberOfLines={1}>
+              {item.description || "No description"}
+            </Text>
+          </View>
 
-        <View style={styles.productRight}>
-          <Text style={styles.price}>₱{item.price.toFixed(2)}</Text>
+          <View style={styles.productRight}>
+            <Text style={styles.price}>₱{item.price.toFixed(2)}</Text>
 
-          <StatusBadge
-            label={item.isActive ? "Active" : "Inactive"}
-            variant={item.isActive ? "success" : "neutral"}
+            <StatusBadge
+              label={item.isActive ? "Active" : "Inactive"}
+              variant={item.isActive ? "success" : "neutral"}
+            />
+          </View>
+
+          <Ionicons
+            name="chevron-forward"
+            size={18}
+            color={colors.textMuted}
+            style={styles.chevron}
           />
-        </View>
-
-        <Ionicons
-          name="chevron-forward"
-          size={18}
-          color={colors.textMuted}
-          style={styles.chevron}
-        />
-      </AppCard>
+        </AppCard>
+      </View>
     ),
     [cardWidth, isTablet],
   );
@@ -238,7 +227,6 @@ export default function ProductsScreen() {
             ]}
           >
             <Ionicons name="refresh-outline" size={18} color={colors.white} />
-
             <Text style={styles.retryText}>Try Again</Text>
           </Pressable>
         </View>
@@ -285,7 +273,6 @@ export default function ProductsScreen() {
       {error && products.length > 0 ? (
         <View style={styles.refreshError}>
           <Ionicons name="warning-outline" size={16} color={colors.warning} />
-
           <Text style={styles.refreshErrorText}>{error}</Text>
 
           <Pressable
@@ -387,11 +374,21 @@ const styles = StyleSheet.create({
     marginBottom: GRID_GAP,
   },
 
+  // This wrapper controls the width of the clickable grid item.
+  productItem: {
+    width: "100%",
+  },
+
   productCard: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     minHeight: 76,
     marginBottom: spacing.md,
+  },
+
+  productCardTablet: {
+    marginBottom: 0,
   },
 
   productIcon: {
@@ -407,7 +404,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     marginLeft: spacing.md,
-    marginRight: spacing.md,
+    marginRight: spacing.sm,
   },
 
   productName: {
