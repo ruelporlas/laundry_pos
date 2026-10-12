@@ -182,10 +182,12 @@ function AuthenticatedApp() {
       href: "/orders" as const,
       icon: "receipt-outline" as const,
       matches: (path: string) =>
-        path === "/orders" ||
-        path === "/new-job-order" ||
-        path === "/payment" ||
-        path === "/job-order-created",
+        [
+          "/orders",
+          "/new-job-order",
+          "/payment",
+          "/job-order-created",
+        ].includes(path),
     },
     {
       label: "Inventory",
@@ -224,7 +226,8 @@ function AuthenticatedApp() {
       label: "Settings",
       href: "/settings" as const,
       icon: "settings-outline" as const,
-      matches: (path: string) => path === "/settings",
+      matches: (path: string) =>
+        path === "/settings" || path === "/printer-settings",
     },
     {
       label: "More",
@@ -363,6 +366,7 @@ function AuthenticatedApp() {
               },
             }}
           >
+            {/* Visible bottom navigation items on phones */}
             <Tabs.Screen
               name="index"
               options={{
@@ -379,6 +383,30 @@ function AuthenticatedApp() {
                 title: "Orders",
                 tabBarIcon: ({ color, size }) => (
                   <Ionicons name="receipt-outline" size={size} color={color} />
+                ),
+              }}
+            />
+
+            <Tabs.Screen
+              name="inventory"
+              options={{
+                title: "Inventory",
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons
+                    name="file-tray-stacked-outline"
+                    size={size}
+                    color={color}
+                  />
+                ),
+              }}
+            />
+
+            <Tabs.Screen
+              name="expenses"
+              options={{
+                title: "Expenses",
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons name="wallet-outline" size={size} color={color} />
                 ),
               }}
             />
@@ -411,12 +439,14 @@ function AuthenticatedApp() {
               }}
             />
 
+            {/* Other screens remain available without appearing as tabs */}
             <Tabs.Screen name="products" options={hiddenRouteOptions} />
             <Tabs.Screen name="services" options={hiddenRouteOptions} />
             <Tabs.Screen name="bundles" options={hiddenRouteOptions} />
             <Tabs.Screen name="activity-log" options={hiddenRouteOptions} />
             <Tabs.Screen name="customers" options={hiddenRouteOptions} />
             <Tabs.Screen name="settings" options={hiddenRouteOptions} />
+            <Tabs.Screen name="printer-settings" options={hiddenRouteOptions} />
 
             <Tabs.Screen name="add-customer" options={hiddenRouteOptions} />
             <Tabs.Screen name="customer-details" options={hiddenRouteOptions} />
@@ -446,12 +476,10 @@ function AuthenticatedApp() {
             <Tabs.Screen name="add-user" options={hiddenRouteOptions} />
             <Tabs.Screen name="edit-user" options={hiddenRouteOptions} />
 
-            <Tabs.Screen name="expenses" options={hiddenRouteOptions} />
             <Tabs.Screen name="add-expense" options={hiddenRouteOptions} />
             <Tabs.Screen name="expense-details" options={hiddenRouteOptions} />
             <Tabs.Screen name="edit-expense" options={hiddenRouteOptions} />
 
-            <Tabs.Screen name="inventory" options={hiddenRouteOptions} />
             <Tabs.Screen
               name="inventory-dashboard"
               options={hiddenRouteOptions}
