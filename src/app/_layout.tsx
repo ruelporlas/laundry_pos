@@ -25,7 +25,7 @@ import { registerActions } from "@/hooks/registerActions";
 import LoginScreen from "./login";
 
 const TABLET_BREAKPOINT = 768;
-const SIDEBAR_EXPANDED_WIDTH = 200;
+const SIDEBAR_EXPANDED_WIDTH = 160;
 const SIDEBAR_COLLAPSED_WIDTH = 72;
 
 const ADMIN_ONLY_ROUTES = new Set([
@@ -170,19 +170,73 @@ function AuthenticatedApp() {
   const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
   const isAdminOnlyRoute = ADMIN_ONLY_ROUTES.has(normalizedPathname);
 
-  const tabletTabBarStyle = {
-    width: sidebarWidth,
-    paddingTop: 48,
-    backgroundColor: colors.surface,
-    borderRightColor: colors.border,
-    borderRightWidth: 1,
-  } as const;
+  const tabletNavigationItems = [
+    {
+      label: "Dashboard",
+      href: "/" as const,
+      icon: "grid-outline" as const,
+      matches: (path: string) => path === "/" || path === "/index",
+    },
+    {
+      label: "Orders",
+      href: "/orders" as const,
+      icon: "receipt-outline" as const,
+      matches: (path: string) =>
+        path === "/orders" ||
+        path === "/new-job-order" ||
+        path === "/payment" ||
+        path === "/job-order-created",
+    },
+    {
+      label: "Inventory",
+      href: "/inventory" as const,
+      icon: "file-tray-stacked-outline" as const,
+      matches: (path: string) =>
+        [
+          "/inventory",
+          "/inventory-dashboard",
+          "/inventory-history",
+          "/stock-in",
+          "/stock-out",
+          "/stock-adjustment",
+          "/inventory-settings",
+        ].includes(path),
+    },
+    {
+      label: "Expenses",
+      href: "/expenses" as const,
+      icon: "wallet-outline" as const,
+      matches: (path: string) =>
+        [
+          "/expenses",
+          "/add-expense",
+          "/expense-details",
+          "/edit-expense",
+        ].includes(path),
+    },
+    {
+      label: "Reports",
+      href: "/sales-report" as const,
+      icon: "bar-chart-outline" as const,
+      matches: (path: string) => path === "/sales-report",
+    },
+    {
+      label: "Settings",
+      href: "/settings" as const,
+      icon: "settings-outline" as const,
+      matches: (path: string) => path === "/settings",
+    },
+    {
+      label: "More",
+      href: "/more" as const,
+      icon: "ellipsis-horizontal-circle-outline" as const,
+      matches: (path: string) => path === "/more",
+    },
+  ];
 
   const hiddenRouteOptions = {
     href: null,
-    tabBarStyle: isTabletLayout
-      ? tabletTabBarStyle
-      : { display: "none" as const },
+    tabBarStyle: { display: "none" as const },
   };
 
   if (!isAuthenticated) {
@@ -195,153 +249,229 @@ function AuthenticatedApp() {
 
   return (
     <View style={styles.appContainer}>
-      <Tabs
-        screenOptions={{
-          headerShown: false,
-          tabBarPosition: isTabletLayout ? "left" : "bottom",
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textMuted,
+      <View style={styles.mainContent}>
+        {isTabletLayout && (
+          <View style={[styles.tabletSidebar, { width: sidebarWidth }]}>
+            <View
+              style={[
+                styles.sidebarHeader,
+                {
+                  justifyContent: sidebarCollapsed ? "center" : "flex-end",
+                },
+              ]}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+                }
+                accessibilityHint="Toggles between icons only and icons with labels."
+                onPress={() => setSidebarCollapsed((collapsed) => !collapsed)}
+                style={({ pressed }) => [
+                  styles.sidebarToggle,
+                  pressed && styles.sidebarTogglePressed,
+                ]}
+              >
+                <Ionicons
+                  name={sidebarCollapsed ? "chevron-forward" : "chevron-back"}
+                  size={20}
+                  color={colors.text}
+                />
+              </Pressable>
+            </View>
 
-          // Only hide labels when the tablet sidebar is collapsed.
-          // Phone navigation keeps its labels.
-          tabBarShowLabel: !isTabletLayout || !sidebarCollapsed,
+            <View style={styles.sidebarNavigation}>
+              {tabletNavigationItems.map((item) => {
+                const isActive = item.matches(normalizedPathname);
 
-          tabBarStyle: isTabletLayout
-            ? tabletTabBarStyle
-            : {
-                backgroundColor: colors.surface,
-                borderTopColor: colors.border,
-                borderTopWidth: 1,
-                height: 60 + insets.bottom,
-                paddingTop: spacing.xs,
-                paddingBottom: insets.bottom + spacing.xs,
+                return (
+                  <Pressable
+                    key={item.href}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.label}
+                    accessibilityState={{ selected: isActive }}
+                    onPress={() => router.navigate(item.href)}
+                    style={({ pressed }) => [
+                      styles.sidebarItem,
+                      {
+                        justifyContent: sidebarCollapsed
+                          ? "center"
+                          : "flex-start",
+                        backgroundColor: isActive
+                          ? colors.background
+                          : "transparent",
+                        borderLeftColor: isActive
+                          ? colors.primary
+                          : "transparent",
+                      },
+                      pressed && styles.sidebarItemPressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name={item.icon}
+                      size={21}
+                      color={isActive ? colors.primary : colors.textMuted}
+                    />
+
+                    {!sidebarCollapsed && (
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.sidebarItemLabel,
+                          {
+                            color: isActive ? colors.primary : colors.textMuted,
+                          },
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        <View style={styles.screenContainer}>
+          <Tabs
+            screenOptions={{
+              headerShown: false,
+              tabBarPosition: "bottom",
+              tabBarActiveTintColor: colors.primary,
+              tabBarInactiveTintColor: colors.textMuted,
+              tabBarShowLabel: true,
+
+              tabBarStyle: isTabletLayout
+                ? { display: "none" }
+                : {
+                    backgroundColor: colors.surface,
+                    borderTopColor: colors.border,
+                    borderTopWidth: 1,
+                    height: 60 + insets.bottom,
+                    paddingTop: spacing.xs,
+                    paddingBottom: insets.bottom + spacing.xs,
+                  },
+
+              tabBarLabelStyle: {
+                fontSize: 11,
+                fontWeight: "500",
               },
 
-          tabBarLabelStyle: {
-            fontSize: 11,
-            fontWeight: "500",
-          },
+              tabBarItemStyle: {
+                paddingVertical: spacing.xs,
+              },
+            }}
+          >
+            <Tabs.Screen
+              name="index"
+              options={{
+                title: "Dashboard",
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons name="grid-outline" size={size} color={color} />
+                ),
+              }}
+            />
 
-          tabBarItemStyle: {
-            paddingVertical: spacing.xs,
-          },
-        }}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: "Dashboard",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="grid-outline" size={size} color={color} />
-            ),
-          }}
-        />
+            <Tabs.Screen
+              name="orders"
+              options={{
+                title: "Orders",
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons name="receipt-outline" size={size} color={color} />
+                ),
+              }}
+            />
 
-        <Tabs.Screen
-          name="orders"
-          options={{
-            title: "Orders",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="receipt-outline" size={size} color={color} />
-            ),
-          }}
-        />
+            <Tabs.Screen
+              name="sales-report"
+              options={{
+                title: "Reports",
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons
+                    name="bar-chart-outline"
+                    size={size}
+                    color={color}
+                  />
+                ),
+              }}
+            />
 
-        <Tabs.Screen
-          name="sales-report"
-          options={{
-            title: "Reports",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="bar-chart-outline" size={size} color={color} />
-            ),
-          }}
-        />
+            <Tabs.Screen
+              name="more"
+              options={{
+                title: "More",
+                tabBarIcon: ({ color, size }) => (
+                  <Ionicons
+                    name="ellipsis-horizontal-circle-outline"
+                    size={size}
+                    color={color}
+                  />
+                ),
+              }}
+            />
 
-        <Tabs.Screen
-          name="more"
-          options={{
-            title: "More",
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons
-                name="ellipsis-horizontal-circle-outline"
-                size={size}
-                color={color}
-              />
-            ),
-          }}
-        />
+            <Tabs.Screen name="products" options={hiddenRouteOptions} />
+            <Tabs.Screen name="services" options={hiddenRouteOptions} />
+            <Tabs.Screen name="bundles" options={hiddenRouteOptions} />
+            <Tabs.Screen name="activity-log" options={hiddenRouteOptions} />
+            <Tabs.Screen name="customers" options={hiddenRouteOptions} />
+            <Tabs.Screen name="settings" options={hiddenRouteOptions} />
 
-        <Tabs.Screen name="products" options={hiddenRouteOptions} />
-        <Tabs.Screen name="services" options={hiddenRouteOptions} />
-        <Tabs.Screen name="bundles" options={hiddenRouteOptions} />
-        <Tabs.Screen name="activity-log" options={hiddenRouteOptions} />
-        <Tabs.Screen name="customers" options={hiddenRouteOptions} />
-        <Tabs.Screen name="settings" options={hiddenRouteOptions} />
+            <Tabs.Screen name="add-customer" options={hiddenRouteOptions} />
+            <Tabs.Screen name="customer-details" options={hiddenRouteOptions} />
+            <Tabs.Screen name="edit-customer" options={hiddenRouteOptions} />
 
-        <Tabs.Screen name="add-customer" options={hiddenRouteOptions} />
-        <Tabs.Screen name="customer-details" options={hiddenRouteOptions} />
-        <Tabs.Screen name="edit-customer" options={hiddenRouteOptions} />
+            <Tabs.Screen name="add-product" options={hiddenRouteOptions} />
+            <Tabs.Screen name="product-details" options={hiddenRouteOptions} />
+            <Tabs.Screen name="edit-product" options={hiddenRouteOptions} />
 
-        <Tabs.Screen name="add-product" options={hiddenRouteOptions} />
-        <Tabs.Screen name="product-details" options={hiddenRouteOptions} />
-        <Tabs.Screen name="edit-product" options={hiddenRouteOptions} />
+            <Tabs.Screen name="add-service" options={hiddenRouteOptions} />
+            <Tabs.Screen name="service-details" options={hiddenRouteOptions} />
+            <Tabs.Screen name="edit-service" options={hiddenRouteOptions} />
 
-        <Tabs.Screen name="add-service" options={hiddenRouteOptions} />
-        <Tabs.Screen name="service-details" options={hiddenRouteOptions} />
-        <Tabs.Screen name="edit-service" options={hiddenRouteOptions} />
+            <Tabs.Screen name="add-bundle" options={hiddenRouteOptions} />
+            <Tabs.Screen name="bundle-details" options={hiddenRouteOptions} />
+            <Tabs.Screen name="edit-bundle" options={hiddenRouteOptions} />
 
-        <Tabs.Screen name="add-bundle" options={hiddenRouteOptions} />
-        <Tabs.Screen name="bundle-details" options={hiddenRouteOptions} />
-        <Tabs.Screen name="edit-bundle" options={hiddenRouteOptions} />
+            <Tabs.Screen name="new-job-order" options={hiddenRouteOptions} />
+            <Tabs.Screen name="payment" options={hiddenRouteOptions} />
+            <Tabs.Screen
+              name="job-order-created"
+              options={hiddenRouteOptions}
+            />
 
-        <Tabs.Screen name="new-job-order" options={hiddenRouteOptions} />
-        <Tabs.Screen name="payment" options={hiddenRouteOptions} />
-        <Tabs.Screen name="job-order-created" options={hiddenRouteOptions} />
+            <Tabs.Screen name="users" options={hiddenRouteOptions} />
+            <Tabs.Screen name="user-details" options={hiddenRouteOptions} />
+            <Tabs.Screen name="add-user" options={hiddenRouteOptions} />
+            <Tabs.Screen name="edit-user" options={hiddenRouteOptions} />
 
-        <Tabs.Screen name="users" options={hiddenRouteOptions} />
-        <Tabs.Screen name="user-details" options={hiddenRouteOptions} />
-        <Tabs.Screen name="add-user" options={hiddenRouteOptions} />
-        <Tabs.Screen name="edit-user" options={hiddenRouteOptions} />
+            <Tabs.Screen name="expenses" options={hiddenRouteOptions} />
+            <Tabs.Screen name="add-expense" options={hiddenRouteOptions} />
+            <Tabs.Screen name="expense-details" options={hiddenRouteOptions} />
+            <Tabs.Screen name="edit-expense" options={hiddenRouteOptions} />
 
-        <Tabs.Screen name="expenses" options={hiddenRouteOptions} />
-        <Tabs.Screen name="add-expense" options={hiddenRouteOptions} />
-        <Tabs.Screen name="expense-details" options={hiddenRouteOptions} />
-        <Tabs.Screen name="edit-expense" options={hiddenRouteOptions} />
+            <Tabs.Screen name="inventory" options={hiddenRouteOptions} />
+            <Tabs.Screen
+              name="inventory-dashboard"
+              options={hiddenRouteOptions}
+            />
+            <Tabs.Screen
+              name="inventory-history"
+              options={hiddenRouteOptions}
+            />
+            <Tabs.Screen name="stock-in" options={hiddenRouteOptions} />
+            <Tabs.Screen name="stock-out" options={hiddenRouteOptions} />
+            <Tabs.Screen name="stock-adjustment" options={hiddenRouteOptions} />
+            <Tabs.Screen
+              name="inventory-settings"
+              options={hiddenRouteOptions}
+            />
 
-        <Tabs.Screen name="inventory" options={hiddenRouteOptions} />
-        <Tabs.Screen name="inventory-dashboard" options={hiddenRouteOptions} />
-        <Tabs.Screen name="inventory-history" options={hiddenRouteOptions} />
-        <Tabs.Screen name="stock-in" options={hiddenRouteOptions} />
-        <Tabs.Screen name="stock-out" options={hiddenRouteOptions} />
-        <Tabs.Screen name="stock-adjustment" options={hiddenRouteOptions} />
-        <Tabs.Screen name="inventory-settings" options={hiddenRouteOptions} />
-
-        <Tabs.Screen name="login" options={hiddenRouteOptions} />
-      </Tabs>
-
-      {isTabletLayout && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
-          }
-          accessibilityHint="Toggles the sidebar between icons only and icons with labels."
-          onPress={() => setSidebarCollapsed((collapsed) => !collapsed)}
-          style={({ pressed }) => [
-            styles.sidebarToggle,
-            {
-              left: sidebarCollapsed ? 20 : SIDEBAR_EXPANDED_WIDTH - 44,
-            },
-            pressed && styles.sidebarTogglePressed,
-          ]}
-        >
-          <Ionicons
-            name={sidebarCollapsed ? "chevron-forward" : "chevron-back"}
-            size={20}
-            color={colors.text}
-          />
-        </Pressable>
-      )}
+            <Tabs.Screen name="login" options={hiddenRouteOptions} />
+          </Tabs>
+        </View>
+      </View>
     </View>
   );
 }
@@ -381,11 +511,34 @@ function AccessDeniedScreen({ onReturn }: { onReturn: () => void }) {
 const styles = StyleSheet.create({
   appContainer: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+
+  mainContent: {
+    flex: 1,
+    flexDirection: "row",
+  },
+
+  screenContainer: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  tabletSidebar: {
+    flexShrink: 0,
+    backgroundColor: colors.surface,
+    borderRightWidth: 1,
+    borderRightColor: colors.border,
+  },
+
+  sidebarHeader: {
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
   },
 
   sidebarToggle: {
-    position: "absolute",
-    top: 10,
     width: 32,
     height: 32,
     borderRadius: 8,
@@ -394,12 +547,37 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
-    zIndex: 100,
-    elevation: 8,
   },
 
   sidebarTogglePressed: {
     opacity: 0.65,
+  },
+
+  sidebarNavigation: {
+    paddingHorizontal: 8,
+    paddingTop: spacing.sm,
+    gap: spacing.xs,
+  },
+
+  sidebarItem: {
+    width: "100%",
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 10,
+    borderLeftWidth: 3,
+    borderRadius: 8,
+  },
+
+  sidebarItemPressed: {
+    opacity: 0.7,
+  },
+
+  sidebarItemLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "500",
   },
 
   loadingContainer: {
