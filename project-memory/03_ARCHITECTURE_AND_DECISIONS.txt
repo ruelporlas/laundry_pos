@@ -1,0 +1,12 @@
+LAUNDRY POS ARCHITECTURE AND DECISIONS
+Reviewed: 2026-10-22
+
+Stack: Expo SDK 57 / React Native 0.86.3 / React 19.2.3 / expo-router 57 / TypeScript 6 strict. @/* aliases src/*. Primary persistence is expo-sqlite laundry_pos.db. Root layout runs migrations, DB health check, demo seeding and action registration. Tablet breakpoint 768; sidebar 160 expanded / 72 collapsed; tablets unlock orientation and non-tablets lock portrait.
+
+Layering: screens src/app; types src/models; SQLite/domain operations src/repositories; shared UI src/components; tokens src/constants; typed action registry/audit in src/hooks; receipt/printer/promotion integration in src/services and src/utils. AuthContext plus module-level authSession current-user accessor; bcryptjs with expo-crypto randomness for passwords.
+
+Migrations are transactional, current version 15. Job orders support product/service/bundle items, percentage/fixed discounts, cash/gcash/other payments, unpaid/partial/paid statuses, voiding and totals. Inventory supports stock-in/out, adjustments, sale deductions, returns, movement history, alerts and valuation. Audit handlers write user-attributed records. Demo seeding runs from root initialization; source comments say existing business data isn't overwritten and demo records aren't duplicated. Default-admin seed helper exists; inspect call sites before assuming it's invoked. Never store credentials.
+
+UI constraints: preserve routes/navigation, auth, DB/repository behavior and workflows in visual changes. Keep PageHero compact unless redesign is approved. Grid widths should use actual content width after sidebar, padding and gaps, not device width alone. AppCard inner style and outerStyle serve different layers. AGENTS.md requires Expo 57 docs before coding.
+
+src/config/api.ts baseUrl is https://vlox.net; verify intended environment before changing. Feature flags for cloud sync/payroll/time tracking do not prove implementation. No schema/business-rule/route redesign/API target change as part of a visual-only task.
