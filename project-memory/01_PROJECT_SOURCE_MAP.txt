@@ -1,0 +1,21 @@
+LAUNDRY POS PROJECT SOURCE MAP
+Reviewed: 2026-10-22 | Repository: ruelporlas/laundry_pos | Branch: master
+Reviewed HEAD before memory writes: 88e76d72d5bb74cd0351841c8e2021d3a23f4e88
+Scope: recursive GitHub tree and targeted source inspection; not a line-by-line audit of every file.
+
+ROOT/CONFIG
+- package.json/package-lock.json: Expo dependencies; scripts start, android, ios, web, lint. No test script.
+- app.json: Expo metadata. tsconfig.json: strict TS; @/* maps to src/*.
+- AGENTS.md: consult versioned Expo 57 docs before coding.
+- README.md is generic create-expo-app documentation, not an accurate product overview.
+- android-build.log is historical, not proof the current source builds.
+- project-memory/AI_PROJECT_PROTOCOL.txt is mandatory; read first.
+- Eight numbered project-memory files were empty before this baseline.
+
+ROUTES: src/app/_layout.tsx is root Expo Router layout; configures orientation, DB migrations/health check, demo seeding, action registration, auth and responsive navigation. Tablet breakpoint 768; sidebar 160 px expanded / 72 px collapsed. Admin-only routes include users, add-user, user-details, edit-user. Screens include dashboard/index, login, orders, new-job-order, payment, job-order-created; customer/product/service/bundle list and add/edit/detail routes; expenses and add/edit/detail; inventory dashboard/list/history/settings and stock-in/out/adjustment; sales-report; settings/printer-settings; users; activity-log; more. Nested workflows are registered as hidden tab routes; preserve route names.
+
+UI: src/components/ui includes AppButton, AppCard, AppHeader, AppInput, AppSelect, EmptyState, ErrorState, LoadingState, PageHero, SectionHeader, StatusBadge and currency helper. Dashboard, job-order and promotion components also under src/components. Design tokens in src/constants; web styles in src/global.css.
+
+DATA: src/database/database.ts uses expo-sqlite database laundry_pos.db; migrations.ts current version 15; healthCheck.ts, seedDemoData.ts, seedDefaultAdmin.ts. Tables include customers, products, services, bundles/bundle_items, job_orders/job_order_items, payments, users, expense_categories/expenses, audit_logs, inventory_items/inventory_movements, app_settings, promotion_cache and metadata. Auth: src/context/AuthContext.tsx and authSession.ts; password helpers in src/utils/password.ts. Models under src/models; SQLite/domain repositories under src/repositories for audit, bundles, customers, expenses, inventory, job orders, products, promotions, reports, services, settings and users. Typed action registry and audit handlers in src/hooks. Receipt/Bluetooth printing under src/services and src/utils; promotions service/cache likewise. src/config/api.ts baseUrl currently https://vlox.net; verify intent before changing. Entitlement flags include POS, expenses, audit, advanced reports, payroll, time tracking, inventory, cloud sync; dev enabled set includes POS, expenses, audit, inventory. Feature flags do not prove all listed features are implemented.
+
+Stack observed: Expo ~57.0.21, expo-router ~57.0.20, React 19.2.3, React Native 0.86.3, TypeScript ~6.0.3, expo-sqlite ~57.0.3. Recursive tree had 169 file entries before memory updates. Targeted source review only.
