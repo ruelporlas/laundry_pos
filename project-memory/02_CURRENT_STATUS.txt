@@ -1,0 +1,8 @@
+LAUNDRY POS CURRENT STATUS
+Reviewed: 2026-10-22 | master HEAD before memory writes: 88e76d72d5bb74cd0351841c8e2021d3a23f4e88
+
+Existing Expo/React Native laundry POS using local SQLite and Expo Router. Source areas include authentication, customer/catalog management, orders/payments, expenses, inventory, reports, settings, receipts/Bluetooth printing, user admin, promotion cache and audit activity. Migrations target DB version 15. README is generic starter text; checked-in android-build.log is historical.
+
+OPEN: prior work focused on possible tablet card overflow in Products, Customers, Expenses, Services and Bundles. AppCard.tsx has inner style and outerStyle for the outer layout/touchable, with minWidth:0 on card and pressable. products.tsx measures its container with onLayout, caps content width at 1200 and derives two-column width from measured width/padding. customers.tsx appears to derive card width from full window width; bundles.tsx appears to calculate columns/card width from full window width. These may mismatch sidebar-reduced content width; not reproduced runtime failures. Recheck latest expenses/services source before asserting their exact behavior.
+
+No app source changed during this review. No install, lint, type-check, platform build, runtime launch or device visual test was run. Continue responsive investigation using fresh source; preserve business logic, auth, DB, navigation and compact PageHero.
