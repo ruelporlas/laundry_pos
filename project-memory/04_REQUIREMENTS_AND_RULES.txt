@@ -1,0 +1,11 @@
+LAUNDRY POS REQUIREMENTS AND RULES
+Reviewed: 2026-10-22
+
+1. Read project-memory/AI_PROJECT_PROTOCOL.txt at the start of every task.
+2. Current source takes precedence over old conversations and summaries. Inspect relevant source and memory before implementation; reconcile conflicts.
+3. Preserve business logic, authentication, database/repository behavior, route names/navigation and integrations unless explicitly requested.
+4. Consult versioned Expo 57 docs before coding, as AGENTS.md instructs. TypeScript strict mode is enabled.
+5. Do not claim tests, builds or runtime/device results without evidence. Distinguish static review from executed checks. Do not store credentials or secrets in memory.
+6. Prior task: investigate possible tablet card overflow in Products, Customers, Expenses, Services and Bundles. Keep PageHero compact. Card widths must account for actual content area, sidebar, padding and gaps.
+7. User prefers complete replacement files when requesting code. Keep fixes scoped and avoid unrelated redesign/features.
+8. Exact overflow reproduction and affected runtime screens remain unverified. No redesign, business-rule/schema/API target change or feature expansion has been approved.
