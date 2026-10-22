@@ -1,6 +1,8 @@
 LAUNDRY POS CHANGE HISTORY
 Append chronologically; preserve previous entries.
 
-2026-10-22 — Initial project-memory baseline prepared from repository review. All eight numbered memory files were empty at reviewed snapshot. Read AI_PROJECT_PROTOCOL.txt and inspected repository tree plus representative route/config/database/auth/repository/service/screen source. Prepared source map, architecture, status, requirements, verification limits, next steps and working preferences. No application source changes and no local tests/builds. products.tsx measures container width while customers.tsx and bundles.tsx appear to use full window width; candidates for review, not confirmed runtime bugs. Latest eight commit messages were generic; no detailed intent inferred.
+2026-10-22 — Project-memory baseline prepared from repository review. All eight numbered memory files were empty at reviewed snapshot. Read AI_PROJECT_PROTOCOL.txt and inspected repository tree plus representative route/config/database/auth/repository/service/screen source. No app source changes and no local tests/builds. products.tsx measures container width while customers.tsx and bundles.tsx appear to use full window width; candidates for review, not confirmed runtime bugs.
 
-Prior history: none existed before this baseline.
+2026-10-22 — Started unfinished-work inventory. Recorded responsive sizing as known investigation; recorded critical workflows as unverified rather than assumed broken; flagged payroll, employee time tracking and cloud sync as unresolved feature-scope questions because entitlement flags alone do not prove implementation or requirement. GitHub code searches for TODO/FIXME/not-implemented/coming-soon and these feature names returned no results; this is not exhaustive evidence. Recommended screen-by-screen functional and verification audit. No application source changes or tests/builds.
+
+Prior history before baseline: none.
