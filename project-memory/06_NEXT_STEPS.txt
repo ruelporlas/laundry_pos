@@ -1,13 +1,14 @@
 LAUNDRY POS NEXT STEPS
 Reviewed: 2026-10-22
 
-Immediate: continue investigating possible tablet card overflow. No app source changed during this memory review.
-1. Fetch latest master products.tsx, customers.tsx, expenses.tsx, services.tsx, bundles.tsx, AppCard.tsx and _layout.tsx.
-2. Read full files; compare list content styles, column wrappers, padding/margins, measured widths, numColumns, breakpoints and card widths. Reconcile with current source rather than reusing old snippets.
-3. Verify widths against content area after sidebar, padding and gaps. products.tsx measures container; customers/bundles appear to use full window width. Confirm expenses/services from current source.
-4. If implementation is requested, narrowly fix responsive sizing while preserving actions, navigation, data flow, auth/database, list states and compact PageHero. Deliver complete replacement files.
-5. If local checkout is available, run npm run lint and npx tsc --noEmit where feasible; visually test phone, tablet expanded sidebar and tablet collapsed sidebar. Document results truthfully.
-6. Update status, verification, next steps and history after substantial work per protocol.
+Current objective: turn the initial source map into a reliable completion audit; do not infer unfinished features from missing tests or feature flags.
 
-Acceptance: no overflow/clipping; widths and columns fit content frame; scrolling/search/refresh/navigation/status/empty/error/loading behavior intact; no unrelated changes; verification documented.
-Unknowns: runtime reproduction unavailable, local checkout not inspected, target dimensions/sidebar state unknown.
+1. Inspect the latest source for the five responsive catalog/expense screens plus AppCard and _layout; confirm or fix only demonstrated tablet width issues.
+2. Build a screen-by-screen matrix of requirements, UI, repository/data operation, role/permission, validation, loading/error/empty states, and test evidence for: login/users; customers/catalog; job orders/payment/void/claim; inventory movements; expenses; sales reports; settings/receipt printing; activity log.
+3. Inspect entitlement flags and all call sites to determine which features are actually gated, implemented, intentionally disabled or placeholders. Payroll, time tracking and cloud sync are unresolved; confirm product requirements before treating them as missing deliverables.
+4. Review high-risk correctness: migration upgrade path, demo/default-admin seeding, auth/role enforcement, payment and order totals/status, inventory deductions/returns, report totals/date ranges, audit coverage, backup/restore/data-loss recovery and printer failure handling.
+5. Run npm run lint and npx tsc --noEmit if environment access permits; then platform build and manual workflows/device checks. Record exact results.
+6. After each substantial review, update status, verification, next steps and append change history.
+
+Acceptance for final project completion audit: every requested requirement marked implemented and verified, incomplete items have owners/decisions/acceptance criteria, no claims based only on a screen or feature flag.
+Unknown: definitive approved feature scope, actual local checkout state, runtime behavior, target devices/printers, backup/cloud expectations.
