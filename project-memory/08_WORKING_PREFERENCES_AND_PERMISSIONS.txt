@@ -1,0 +1,8 @@
+LAUNDRY POS WORKING PREFERENCES AND PERMISSIONS
+Reviewed: 2026-10-22. Based on explicit project instructions and recent collaboration; supersede if user changes preferences.
+
+CONTINUITY: Always read project-memory/AI_PROJECT_PROTOCOL.txt first. Read relevant memory and inspect actual source before implementation; reconcile stale notes. Do not begin implementation until scope is understood. At the end of substantial work update assigned memory and report exactly which files actually changed; never claim an unsuccessful update.
+
+CODE DELIVERY: User prefers direct coding help and complete replacement files when code is requested. Fetch latest source before preparing replacement code. Keep changes scoped; preserve business logic, auth/database behavior, routes/navigation and compact PageHero unless asked otherwise. Distinguish static review from lint/type/build/runtime/device verification.
+
+PERMISSIONS: User generally makes/pushes application-code changes themselves; do not modify app source or push unrelated app changes without explicit request. This task explicitly requests project-memory updates; writes are limited to designated memory files. Do not modify unrelated repositories/systems. Never store credentials/secrets. Ask before expanding scope or irreversible technical/business-rule decisions. If a handoff is declined, continue in current interaction when feasible.
