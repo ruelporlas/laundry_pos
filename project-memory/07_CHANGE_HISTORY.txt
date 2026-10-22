@@ -1,0 +1,6 @@
+LAUNDRY POS CHANGE HISTORY
+Append chronologically; preserve previous entries.
+
+2026-10-22 — Initial project-memory baseline prepared from repository review. All eight numbered memory files were empty at reviewed snapshot. Read AI_PROJECT_PROTOCOL.txt and inspected repository tree plus representative route/config/database/auth/repository/service/screen source. Prepared source map, architecture, status, requirements, verification limits, next steps and working preferences. No application source changes and no local tests/builds. products.tsx measures container width while customers.tsx and bundles.tsx appear to use full window width; candidates for review, not confirmed runtime bugs. Latest eight commit messages were generic; no detailed intent inferred.
+
+Prior history: none existed before this baseline.
